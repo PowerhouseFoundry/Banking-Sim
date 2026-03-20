@@ -47,31 +47,31 @@ export default function LoginPage() {
       }}
     >
       <div
-        style={{
-          width: "100%",
-          maxWidth: "1180px",
-          display: "grid",
-          gridTemplateColumns: "1.05fr 0.95fr",
-          gap: "24px",
-          alignItems: "stretch"
-        }}
+   style={{
+  width: "100%",
+  maxWidth: "1040px",
+  display: "grid",
+  gridTemplateColumns: "1fr 0.92fr",
+  gap: "20px",
+  alignItems: "stretch"
+}}
         className="ph-login-shell"
       >
         <div
-          style={{
-            position: "relative",
-            borderRadius: "32px",
-            overflow: "hidden",
-            minHeight: "680px",
-            padding: "40px",
-            background:
-              "linear-gradient(145deg, rgba(10,28,64,0.98) 0%, rgba(24,64,140,0.94) 52%, rgba(79,144,255,0.88) 100%)",
-            boxShadow: "0 24px 60px rgba(20, 33, 61, 0.18)",
-            color: "white",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between"
-          }}
+style={{
+  position: "relative",
+  borderRadius: "28px",
+  overflow: "hidden",
+  minHeight: "600px",
+  padding: "30px",
+  background:
+    "linear-gradient(145deg, rgba(10,28,64,0.98) 0%, rgba(24,64,140,0.94) 52%, rgba(79,144,255,0.88) 100%)",
+  boxShadow: "0 24px 60px rgba(20, 33, 61, 0.18)",
+  color: "white",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between"
+}}
           className="ph-login-hero"
         >
           <div
@@ -126,14 +126,14 @@ marginBottom: "30px"
                 Welcome
               </div>
 
-              <h1
-                style={{
-                  margin: "0 0 18px",
-                  fontSize: "58px",
-                  lineHeight: 1.02,
-                  letterSpacing: "-0.03em"
-                }}
-              >
+<h1
+  style={{
+    margin: "0 0 14px",
+    fontSize: "46px",
+    lineHeight: 1.02,
+    letterSpacing: "-0.03em"
+  }}
+>
                 PLC Bank Simulator
               </h1>
 <p
@@ -145,15 +145,15 @@ marginBottom: "30px"
 >
   Educational banking simulation for students. No real financial data is used.
 </p>
-              <p
-                style={{
-                  margin: 0,
-                  maxWidth: "520px",
-                  fontSize: "24px",
-                  lineHeight: 1.6,
-                  opacity: 0.92
-                }}
-              >
+<p
+  style={{
+    margin: 0,
+    maxWidth: "500px",
+    fontSize: "20px",
+    lineHeight: 1.55,
+    opacity: 0.92
+  }}
+>
                 Check your balance, manage payments, spot fraud,
                 and practise real money skills in this training bank account.
               </p>
@@ -196,20 +196,20 @@ marginBottom: "30px"
           </div>
         </div>
 <div
-  style={{
-    minHeight: "680px",
-    borderRadius: "32px",
-    background: "rgba(255,255,255,0.88)",
-    border: "1px solid rgba(207, 216, 230, 0.95)",
-    boxShadow: "0 24px 60px rgba(20, 33, 61, 0.10)",
-    backdropFilter: "blur(10px)",
-    padding: "34px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative", // IMPORTANT
-    overflow: "hidden"
-  }}
+style={{
+  minHeight: "600px",
+  borderRadius: "28px",
+  background: "rgba(255,255,255,0.88)",
+  border: "1px solid rgba(207, 216, 230, 0.95)",
+  boxShadow: "0 24px 60px rgba(20, 33, 61, 0.10)",
+  backdropFilter: "blur(10px)",
+  padding: "28px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  position: "relative",
+  overflow: "hidden"
+}}
   className="ph-login-card-wrap"
 >
 
@@ -217,26 +217,26 @@ marginBottom: "30px"
   <img
     src={logo}
     alt="PLC Bank"
-    style={{
-      position: "absolute",
-top: "-80px",
-left: "10px",   // 🔥 move to left
-width: "400px",
-height: "400px",
-objectFit: "contain",
-opacity: 0.75,  // 🔥 more visible
-pointerEvents: "none",
-zIndex: 1
-    }}
+style={{
+  position: "absolute",
+  top: "-56px",
+  left: "8px",
+  width: "280px",
+  height: "280px",
+  objectFit: "contain",
+  opacity: 0.7,
+  pointerEvents: "none",
+  zIndex: 1
+}}
   />
 
 <div style={{ 
-  maxWidth: "440px", 
+  maxWidth: "420px", 
   width: "100%", 
   margin: "0 auto", 
   position: "relative", 
   zIndex: 2,
-  paddingTop: "120px"   // 🔥 pushes content below logo
+  paddingTop: "72px"
 }}>
     
     <div style={{ marginBottom: "24px" }}>
@@ -254,14 +254,14 @@ zIndex: 1
       </div>
                
 
-              <h2
-                style={{
-                  margin: "0 0 10px",
-                  fontSize: "36px",
-                  lineHeight: 1.08,
-                  color: "#17233c"
-                }}
-              >
+ <h2
+  style={{
+    margin: "0 0 10px",
+    fontSize: "30px",
+    lineHeight: 1.08,
+    color: "#17233c"
+  }}
+>
                 Access your bank account
               </h2>
 
@@ -357,7 +357,38 @@ zIndex: 1
         </div>
       </div>
 
-      <style>{`
+       <style>{`
+        @media (max-width: 1200px) {
+          .ph-login-shell {
+            max-width: 960px !important;
+            grid-template-columns: 1fr 0.95fr !important;
+            gap: 18px !important;
+          }
+
+          .ph-login-hero,
+          .ph-login-card-wrap {
+            min-height: 560px !important;
+            padding: 24px !important;
+            border-radius: 24px !important;
+          }
+
+          .ph-login-hero h1 {
+            font-size: 40px !important;
+          }
+
+          .ph-login-card-wrap h2 {
+            font-size: 28px !important;
+          }
+
+          .ph-login-feature-grid {
+            gap: 12px !important;
+          }
+
+          .ph-login-feature-grid > div {
+            padding: 14px !important;
+          }
+        }
+
         @media (max-width: 980px) {
           .ph-login-shell {
             grid-template-columns: 1fr !important;
