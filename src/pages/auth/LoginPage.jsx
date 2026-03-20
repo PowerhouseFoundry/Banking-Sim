@@ -435,6 +435,14 @@ export default function LoginPage() {
     font-size: 24px !important;
   }
 }
+  .ph-login-card-wrap img {
+  width: 180px !important;
+  height: 180px !important;
+  top: -80px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  opacity: 0.6 !important;
+}
       `}</style>
     </div>
   );
