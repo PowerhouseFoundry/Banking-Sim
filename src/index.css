@@ -1390,21 +1390,7 @@ body {
     line-height: 1.45 !important;
   }
 
-  .ph-student-hero-actions,
-  .ph-hero-actions,
-  .ph-student-actions {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 10px !important;
-    width: 100% !important;
-  }
 
-  .ph-student-hero-actions .ph-button,
-  .ph-hero-actions .ph-button,
-  .ph-student-actions .ph-button {
-    min-width: 0 !important;
-    width: 100% !important;
-  }
 
   /* Summary/stat cards */
   .ph-student-summary-grid,
@@ -1481,15 +1467,37 @@ body {
     font-size: 21px !important;
   }
 
-  .ph-student-hero-actions,
-  .ph-hero-actions,
-  .ph-student-actions {
-    grid-template-columns: 1fr !important;
-  }
+
 
   .ph-discover-grid > * {
     flex: 0 0 88% !important;
     min-width: 88% !important;
     max-width: 88% !important;
+  }
+}
+/* Dashboard action buttons: show one set only */
+.ph-student-hero-actions-desktop {
+  display: grid;
+}
+
+.ph-student-hero-actions-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .ph-student-hero-actions-desktop {
+    display: none !important;
+  }
+
+  .ph-student-hero-actions-mobile {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .ph-student-hero-actions-mobile .ph-student-hero-action {
+    min-width: 0 !important;
+    width: 100% !important;
   }
 }
