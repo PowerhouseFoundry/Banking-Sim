@@ -12,15 +12,15 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-
-
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const loggedInUser = await login(username, password);
+      const cleanUsername = username.trim();
+      const cleanPassword = password.trim();
+      const loggedInUser = await login(cleanUsername, cleanPassword);
 
       if (loggedInUser.role === "teacher") {
         navigate("/teacher/dashboard");
@@ -47,31 +47,31 @@ export default function LoginPage() {
       }}
     >
       <div
-   style={{
-  width: "100%",
-  maxWidth: "1040px",
-  display: "grid",
-  gridTemplateColumns: "1fr 0.92fr",
-  gap: "20px",
-  alignItems: "stretch"
-}}
+        style={{
+          width: "100%",
+          maxWidth: "1040px",
+          display: "grid",
+          gridTemplateColumns: "1fr 0.92fr",
+          gap: "20px",
+          alignItems: "stretch"
+        }}
         className="ph-login-shell"
       >
         <div
-style={{
-  position: "relative",
-  borderRadius: "28px",
-  overflow: "hidden",
-  minHeight: "600px",
-  padding: "30px",
-  background:
-    "linear-gradient(145deg, rgba(10,28,64,0.98) 0%, rgba(24,64,140,0.94) 52%, rgba(79,144,255,0.88) 100%)",
-  boxShadow: "0 24px 60px rgba(20, 33, 61, 0.18)",
-  color: "white",
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "space-between"
-}}
+          style={{
+            position: "relative",
+            borderRadius: "28px",
+            overflow: "hidden",
+            minHeight: "600px",
+            padding: "30px",
+            background:
+              "linear-gradient(145deg, rgba(10,28,64,0.98) 0%, rgba(24,64,140,0.94) 52%, rgba(79,144,255,0.88) 100%)",
+            boxShadow: "0 24px 60px rgba(20, 33, 61, 0.18)",
+            color: "white",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between"
+          }}
           className="ph-login-hero"
         >
           <div
@@ -88,11 +88,9 @@ style={{
             <div
               style={{
                 display: "block",
-marginBottom: "30px"
+                marginBottom: "30px"
               }}
             >
-
-
               <div>
                 <div
                   style={{
@@ -104,10 +102,8 @@ marginBottom: "30px"
                     marginBottom: "4px"
                   }}
                 >
-                  
                 </div>
                 <div style={{ fontSize: "18px", opacity: 0.9 }}>
-                  
                 </div>
               </div>
             </div>
@@ -126,34 +122,36 @@ marginBottom: "30px"
                 Welcome
               </div>
 
-<h1
-  style={{
-    margin: "0 0 14px",
-    fontSize: "46px",
-    lineHeight: 1.02,
-    letterSpacing: "-0.03em"
-  }}
->
+              <h1
+                style={{
+                  margin: "0 0 14px",
+                  fontSize: "46px",
+                  lineHeight: 1.02,
+                  letterSpacing: "-0.03em"
+                }}
+              >
                 PLC Bank Simulator
               </h1>
-<p
-  style={{
-    fontSize: "14px",
-    color: "rgba(255,255,255,0.8)",
-    marginTop: "10px"
-  }}
->
-  Educational banking simulation for students. No real financial data is used.
-</p>
-<p
-  style={{
-    margin: 0,
-    maxWidth: "500px",
-    fontSize: "20px",
-    lineHeight: 1.55,
-    opacity: 0.92
-  }}
->
+
+              <p
+                style={{
+                  fontSize: "14px",
+                  color: "rgba(255,255,255,0.8)",
+                  marginTop: "10px"
+                }}
+              >
+                Educational banking simulation for students. No real financial data is used.
+              </p>
+
+              <p
+                style={{
+                  margin: 0,
+                  maxWidth: "500px",
+                  fontSize: "20px",
+                  lineHeight: 1.55,
+                  opacity: 0.92
+                }}
+              >
                 Check your balance, manage payments, spot fraud,
                 and practise real money skills in this training bank account.
               </p>
@@ -195,73 +193,72 @@ marginBottom: "30px"
             ))}
           </div>
         </div>
-<div
-style={{
-  minHeight: "600px",
-  borderRadius: "28px",
-  background: "rgba(255,255,255,0.88)",
-  border: "1px solid rgba(207, 216, 230, 0.95)",
-  boxShadow: "0 24px 60px rgba(20, 33, 61, 0.10)",
-  backdropFilter: "blur(10px)",
-  padding: "28px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  position: "relative",
-  overflow: "hidden"
-}}
-  className="ph-login-card-wrap"
->
 
-  {/* 🔥 LOGO (does NOT affect layout) */}
-  <img
-    src={logo}
-    alt="PLC Bank"
-style={{
-  position: "absolute",
-  top: "-56px",
-  left: "8px",
-  width: "280px",
-  height: "280px",
-  objectFit: "contain",
-  opacity: 0.7,
-  pointerEvents: "none",
-  zIndex: 1
-}}
-  />
+        <div
+          style={{
+            minHeight: "600px",
+            borderRadius: "28px",
+            background: "rgba(255,255,255,0.88)",
+            border: "1px solid rgba(207, 216, 230, 0.95)",
+            boxShadow: "0 24px 60px rgba(20, 33, 61, 0.10)",
+            backdropFilter: "blur(10px)",
+            padding: "28px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            position: "relative",
+            overflow: "hidden"
+          }}
+          className="ph-login-card-wrap"
+        >
+          <img
+            src={logo}
+            alt="PLC Bank"
+            style={{
+              position: "absolute",
+              top: "-56px",
+              left: "8px",
+              width: "280px",
+              height: "280px",
+              objectFit: "contain",
+              opacity: 0.7,
+              pointerEvents: "none",
+              zIndex: 1
+            }}
+          />
 
-<div style={{ 
-  maxWidth: "420px", 
-  width: "100%", 
-  margin: "0 auto", 
-  position: "relative", 
-  zIndex: 2,
-  paddingTop: "72px"
-}}>
-    
-    <div style={{ marginBottom: "24px" }}>
-      <div
-        style={{
-          fontSize: "14px",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: "#3563e9",
-          marginBottom: "10px"
-        }}
-      >
-        Sign in
-      </div>
-               
+          <div
+            style={{
+              maxWidth: "420px",
+              width: "100%",
+              margin: "0 auto",
+              position: "relative",
+              zIndex: 2,
+              paddingTop: "72px"
+            }}
+          >
+            <div style={{ marginBottom: "24px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "#3563e9",
+                  marginBottom: "10px"
+                }}
+              >
+                Sign in
+              </div>
 
- <h2
-  style={{
-    margin: "0 0 10px",
-    fontSize: "30px",
-    lineHeight: 1.08,
-    color: "#17233c"
-  }}
->
+              <h2
+                style={{
+                  margin: "0 0 10px",
+                  fontSize: "30px",
+                  lineHeight: 1.08,
+                  color: "#17233c"
+                }}
+              >
                 Access your bank account
               </h2>
 
@@ -275,15 +272,16 @@ style={{
               >
                 Use your username and password to continue.
               </p>
+
               <p
-  style={{
-    fontSize: "12px",
-    color: "#8a94a6",
-    marginTop: "8px"
-  }}
->
-  This is a training system used in education, not a real bank.
-</p>
+                style={{
+                  fontSize: "12px",
+                  color: "#8a94a6",
+                  marginTop: "8px"
+                }}
+              >
+                This is a training system used in education, not a real bank.
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="ph-form">
@@ -295,6 +293,10 @@ style={{
                   onChange={(event) => setUsername(event.target.value)}
                   placeholder="Enter your username"
                   autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="text"
                   style={{
                     minHeight: "58px",
                     borderRadius: "16px",
@@ -314,6 +316,9 @@ style={{
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
                   autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   style={{
                     minHeight: "58px",
                     borderRadius: "16px",
@@ -352,12 +357,11 @@ style={{
                 {loading ? "Signing in..." : "Sign in"}
               </button>
             </form>
-            
           </div>
         </div>
       </div>
 
-       <style>{`
+      <style>{`
         @media (max-width: 1200px) {
           .ph-login-shell {
             max-width: 960px !important;
