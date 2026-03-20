@@ -1331,3 +1331,165 @@ body {
     min-height: 220px;
   }
 }
+/* =========================
+   MOBILE DASHBOARD FIXES
+   Add at very end of index.css
+   ========================= */
+
+@media (max-width: 768px) {
+  /* App shell */
+  .ph-app {
+    display: block !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .ph-sidebar {
+    display: none !important;
+  }
+
+  .ph-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 12px 12px 88px !important;
+    overflow-x: hidden !important;
+  }
+
+  .ph-mobile-tabs {
+    display: flex !important;
+  }
+
+  /* General page spacing */
+  .ph-student-page,
+  .ph-page,
+  .ph-section,
+  .ph-card {
+    min-width: 0 !important;
+  }
+
+  /* Hero / top dashboard section */
+  .ph-student-hero {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    padding: 16px !important;
+    border-radius: 18px !important;
+    min-width: 0 !important;
+  }
+
+  .ph-student-hero h1,
+  .ph-student-hero h2 {
+    font-size: 24px !important;
+    line-height: 1.15 !important;
+  }
+
+  .ph-student-hero p {
+    font-size: 14px !important;
+    line-height: 1.45 !important;
+  }
+
+  .ph-student-hero-actions,
+  .ph-hero-actions,
+  .ph-student-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .ph-student-hero-actions .ph-button,
+  .ph-hero-actions .ph-button,
+  .ph-student-actions .ph-button {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Summary/stat cards */
+  .ph-student-summary-grid,
+  .ph-summary-grid,
+  .ph-dashboard-grid,
+  .ph-overview-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Any two-column content areas */
+  .ph-grid-2,
+  .ph-grid-3,
+  .ph-two-col,
+  .ph-split,
+  .ph-panels {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Cards/tables/forms */
+  .ph-card,
+  .ph-panel,
+  .ph-widget,
+  .ph-table-wrap,
+  .ph-form {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Discover row: horizontal scroll on phone */
+  .ph-discover-grid {
+    display: flex !important;
+    gap: 12px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding-bottom: 6px !important;
+    margin-right: -4px !important;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ph-discover-grid > * {
+    flex: 0 0 82% !important;
+    min-width: 82% !important;
+    max-width: 82% !important;
+    scroll-snap-align: start;
+  }
+
+  /* Stop random overflow from inner content */
+  .ph-discover-grid *,
+  .ph-student-hero *,
+  .ph-card *,
+  .ph-panel * {
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .ph-main {
+    padding: 10px 10px 92px !important;
+  }
+
+  .ph-student-hero {
+    padding: 14px !important;
+    border-radius: 16px !important;
+  }
+
+  .ph-student-hero h1,
+  .ph-student-hero h2 {
+    font-size: 21px !important;
+  }
+
+  .ph-student-hero-actions,
+  .ph-hero-actions,
+  .ph-student-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .ph-discover-grid > * {
+    flex: 0 0 88% !important;
+    min-width: 88% !important;
+    max-width: 88% !important;
+  }
+}
