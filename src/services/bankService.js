@@ -317,6 +317,21 @@ function readState() {
   return memoryState || readLocalCache() || getDefaultState();
 }
 
+async function readStateForLogin() {
+  await waitForBankState();
+
+  if (memoryState) {
+    return memoryState;
+  }
+
+  const cachedState = readLocalCache();
+  if (cachedState) {
+    return cachedState;
+  }
+
+  throw new Error("Bank data is still loading. Please try again.");
+}
+
 function writeState(nextState) {
   startFirestoreSync();
 
@@ -361,20 +376,23 @@ function addNotification(state, studentId, type, title, message) {
   });
 }
 
-export function authenticateLogin({ username, password }) {
-  const state = readState();
+export async function authenticateLogin({ username, password }) {
+  const state = await readStateForLogin();
+
+  const safeUsername = (username || "").trim().toLowerCase();
+  const safePassword = (password || "").trim();
 
   const login = state.logins.find(
     (item) =>
       item.active !== false &&
-      (item.username || "").toLowerCase() === (username || "").trim().toLowerCase()
+      (item.username || "").trim().toLowerCase() === safeUsername
   );
 
   if (!login) {
     throw new Error("We could not find that username.");
   }
 
-  if (login.password !== password) {
+  if ((login.password || "").trim() !== safePassword) {
     throw new Error("Incorrect password.");
   }
 

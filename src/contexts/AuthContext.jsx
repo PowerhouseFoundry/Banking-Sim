@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     await waitForBankState();
-    const authenticatedUser = authenticateLogin({ username, password });
+    const authenticatedUser = await authenticateLogin({ username, password });
     setUser(authenticatedUser);
     return authenticatedUser;
   };
