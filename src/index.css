@@ -1,3 +1,13 @@
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
 :root {
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #14213d;
@@ -63,9 +73,9 @@ button, input, select, textarea { font: inherit; }
 .ph-demo-actions { display: grid; gap: 12px; }
 .ph-demo-note { margin-top: 12px; color: var(--muted); font-size: .95rem; }
 
-.ph-app { 
-  display: grid; 
-  grid-template-columns: 260px 1fr; /* slightly smaller sidebar */
+.ph-app {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
   width: 100%;
   max-width: 100vw;
@@ -74,7 +84,9 @@ button, input, select, textarea { font: inherit; }
 .ph-main {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow-x: hidden;
+  padding: 22px;
 }
 .ph-sidebar { background: #0f172a; color: white; padding: 24px; display: flex; flex-direction: column; gap: 24px; }
 .ph-brand { display: flex; gap: 14px; align-items: center; }
@@ -86,7 +98,6 @@ button, input, select, textarea { font: inherit; }
 .ph-sidebar-footer { margin-top: auto; display: grid; gap: 14px; }
 .ph-user-chip { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.06); border-radius: 16px; padding: 12px; }
 .ph-user-avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.14); font-weight: 800; }
-.ph-main { padding: 28px; }
 .ph-page-header { margin-bottom: 24px; }
 .ph-eyebrow { margin: 0 0 8px; color: var(--primary); font-weight: 800; text-transform: uppercase; font-size: .8rem; letter-spacing: .08em; }
 .ph-page-content { display: grid; gap: 24px; }
@@ -1256,4 +1267,67 @@ a:hover .ph-mobile-savings-card {
 body {
   min-height: 100vh;
   overflow-x: hidden;
+}
+@media (max-width: 1440px) {
+  html {
+    font-size: 15px;
+  }
+
+  .ph-app {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .ph-sidebar {
+    padding: 18px;
+    gap: 18px;
+  }
+
+  .ph-nav-link {
+    min-height: 46px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+  }
+
+  .ph-main {
+    padding: 18px;
+  }
+
+  .ph-page-header {
+    margin-bottom: 18px;
+  }
+
+  .ph-page-content {
+    gap: 18px;
+  }
+
+  .ph-grid {
+    gap: 16px;
+  }
+
+  .ph-login-card,
+  .ph-simple-card,
+  .ph-card {
+    padding: 20px;
+  }
+
+  .ph-stat-value {
+    font-size: 1.6rem;
+  }
+
+  .ph-profile-balance {
+    font-size: 2.3rem;
+  }
+
+  .ph-mobile-balance-value {
+    font-size: 2rem;
+  }
+
+  .ph-student-balance-header,
+  .ph-student-balance-row {
+    padding: 16px 18px;
+  }
+
+  .ph-student-hero {
+    min-height: 220px;
+  }
 }
