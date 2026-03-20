@@ -409,25 +409,32 @@ export default function LoginPage() {
           }
         }
 
-        @media (max-width: 640px) {
-          .ph-login-page {
-            padding: 18px 14px !important;
-          }
+      @media (max-width: 640px) {
+  .ph-login-page {
+    padding: 12px !important;
+  }
 
-          .ph-login-hero,
-          .ph-login-card-wrap {
-            padding: 22px !important;
-            border-radius: 24px !important;
-          }
+  /* 🔴 Hide the blue hero completely on mobile */
+  .ph-login-hero {
+    display: none !important;
+  }
 
-          .ph-login-hero h1 {
-            font-size: 36px !important;
-          }
+  /* Make login card full width */
+  .ph-login-shell {
+    grid-template-columns: 1fr !important;
+    max-width: 100% !important;
+  }
 
-          .ph-login-card-wrap h2 {
-            font-size: 28px !important;
-          }
-        }
+  .ph-login-card-wrap {
+    padding: 20px !important;
+    border-radius: 20px !important;
+    min-height: auto !important;
+  }
+
+  .ph-login-card-wrap h2 {
+    font-size: 24px !important;
+  }
+}
       `}</style>
     </div>
   );
