@@ -2,12 +2,12 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCYBv6Gg9Ji6qHLAqDPU5T_ydxgXgxJ65o",
-  authDomain: "plc-bank-6e424.firebaseapp.com",
-  projectId: "plc-bank-6e424",
-  storageBucket: "plc-bank-6e424.firebasestorage.app",
-  messagingSenderId: "70691237554",
-  appId: "1:70691237554:web:ad2f60b856f10deb45e3ab"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);
