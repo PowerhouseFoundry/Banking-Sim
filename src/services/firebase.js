@@ -1,33 +1,21 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-
 const firebaseConfig = {
-  apiKey: "AIzaSyD_IywY_JIbF9AE0ox5Ll-DDZ_sm7vBzaE",
-  authDomain: "plc-banking.firebaseapp.com",
-  projectId: "plc-banking",
-  storageBucket: "plc-banking.firebasestorage.app",
-  messagingSenderId: "873314997522",
-  appId: "1:873314997522:web:0cc1e2bc1348d83b1e0fcb"
+  apiKey: "AIzaSyCYBv6Gg9Ji6qHLAqDPU5T_ydxgXgxJ65o",
+  authDomain: "plc-bank-6e424.firebaseapp.com",
+  projectId: "plc-bank-6e424",
+  storageBucket: "plc-bank-6e424.firebasestorage.app",
+  messagingSenderId: "70691237554",
+  appId: "1:70691237554:web:ad2f60b856f10deb45e3ab"
 };
 
-
 const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-
-let firebaseReadyPromise = null;
-
-export function ensureFirebaseReady() {
-  if (auth.currentUser) {
-    return Promise.resolve(auth.currentUser);
-  }
-
-  if (!firebaseReadyPromise) {
-    firebaseReadyPromise = signInAnonymously(auth);
-  }
-
-  return firebaseReadyPromise;
+// 👇 THIS FIXES YOUR ERROR
+export async function ensureFirebaseReady() {
+  return db;
 }
+
+export { db };
