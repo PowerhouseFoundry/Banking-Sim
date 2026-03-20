@@ -1474,14 +1474,18 @@ body {
     min-width: 88% !important;
     max-width: 88% !important;
   }
-}
-/* Dashboard action buttons: show one set only */
+}/* Dashboard action buttons: show one set only */
 .ph-student-hero-actions-desktop {
-  display: grid;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 18px !important;
+  width: 100% !important;
+  max-width: 760px !important;
+  margin: auto auto 10px !important;
 }
 
 .ph-student-hero-actions-mobile {
-  display: none;
+  display: none !important;
 }
 
 @media (max-width: 768px) {
