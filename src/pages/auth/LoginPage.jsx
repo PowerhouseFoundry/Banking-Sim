@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const cleanUsername = username.trim();
+      const cleanUsername = username.trim().toLowerCase();
       const cleanPassword = password.trim();
       const loggedInUser = await login(cleanUsername, cleanPassword);
 
@@ -290,7 +290,7 @@ export default function LoginPage() {
                 <input
                   type="text"
                   value={username}
-                  onChange={(event) => setUsername(event.target.value)}
+                 onChange={(event) => setUsername(event.target.value.replace(/\s+/g, ""))}
                   placeholder="Enter your username"
                   autoComplete="username"
                   autoCapitalize="none"
