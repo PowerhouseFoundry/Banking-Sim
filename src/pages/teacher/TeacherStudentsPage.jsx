@@ -9,6 +9,7 @@ import {
   updateStudent,
   updateStudentLogin,
   resetStudentPassword,
+  resetStudentBalance,
   deleteStudent
 } from "../../services/bankService.js";
 import useBankRefresh from "../../hooks/useBankRefresh.js";
@@ -151,7 +152,20 @@ export default function TeacherStudentsPage() {
     resetStudentPassword(student.id, "student123");
     window.alert("Password reset to student123.");
   }
+function handleResetBalance(student) {
+  const confirmed = window.confirm(
+    `Reset ${student.name}'s balance to £0.00?`
+  );
 
+  if (!confirmed) return;
+
+  try {
+    resetStudentBalance(student.id);
+    window.alert("Balance reset to £0.00.");
+  } catch (error) {
+    window.alert(error.message || "Could not reset balance.");
+  }
+}
   function handleDeleteStudent(student) {
     const confirmed = window.confirm(
       `Delete ${student.name}? This removes their login, account, and all banking data.`
@@ -340,33 +354,41 @@ export default function TeacherStudentsPage() {
                     </button>
                   </td>
 
-                  <td>
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                      <button
-                        className="ph-button ph-button-secondary"
-                        type="button"
-                        onClick={() => handleEditUsername(student)}
-                      >
-                        Username
-                      </button>
+                <td>
+  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+    <button
+      className="ph-button ph-button-secondary"
+      type="button"
+      onClick={() => handleEditUsername(student)}
+    >
+      Username
+    </button>
 
-                      <button
-                        className="ph-button ph-button-secondary"
-                        type="button"
-                        onClick={() => handleEditPassword(student)}
-                      >
-                        Password
-                      </button>
+    <button
+      className="ph-button ph-button-secondary"
+      type="button"
+      onClick={() => handleEditPassword(student)}
+    >
+      Password
+    </button>
 
-                      <button
-                        className="ph-button ph-button-secondary"
-                        type="button"
-                        onClick={() => handleResetPassword(student)}
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </td>
+    <button
+      className="ph-button ph-button-secondary"
+      type="button"
+      onClick={() => handleResetPassword(student)}
+    >
+      Reset
+    </button>
+
+    <button
+      className="ph-button ph-button-secondary"
+      type="button"
+      onClick={() => handleResetBalance(student)}
+    >
+      Balance
+    </button>
+  </div>
+</td>
 
                   <td>
                     <button

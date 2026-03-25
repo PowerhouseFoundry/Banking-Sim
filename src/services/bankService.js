@@ -704,7 +704,47 @@ export function updateStudent(studentId, updates) {
   writeState(state);
   return student;
 }
+export function resetStudentBalance(studentId) {
+  const state = readState();
+  const account = state.accounts.find((item) => item.studentId === studentId);
+  const student = state.students.find((item) => item.id === studentId);
 
+  if (!account || !student) {
+    throw new Error("Student account not found.");
+  }
+
+  const currentBalance = Number(account.balance || 0);
+
+  if (currentBalance === 0) {
+    return account;
+  }
+
+  const adjustmentAmount = -currentBalance;
+
+  state.transactions.unshift({
+    id: createId("txn"),
+    accountId: account.id,
+    studentId,
+    date: todayDate(),
+    description: "BALANCE RESET TO ZERO",
+    category: "Admin reset",
+    amount: adjustmentAmount,
+    suspicious: false
+  });
+
+  account.balance = 0;
+
+  addNotification(
+    state,
+    studentId,
+    "info",
+    "Balance reset",
+    "A teacher reset your main account balance to £0.00."
+  );
+
+  writeState(state);
+  return account;
+}
 export function deleteStudent(studentId) {
   const state = readState();
 
