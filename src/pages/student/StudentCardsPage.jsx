@@ -25,11 +25,66 @@ export default function StudentCardsPage() {
       <div className="ph-student-home-split">
         <SectionCard title="Debit card" description="Current card status.">
           <div className="ph-mobile-card-panel">
-            <div className="ph-mobile-card-visual">
-              <div className="ph-mobile-card-brand">Powerhouse Banking</div>
-              <div className="ph-mobile-card-number">1234 5678 9012 3456</div>
-              <div className="ph-mobile-card-name">{user.name}</div>
-            </div>
+<div className="ph-mobile-card-wrapper">
+  
+  {/* FRONT OF CARD */}
+  <div className="ph-mobile-card-visual">
+    <div className="ph-mobile-card-brand">Powerhouse Banking</div>
+
+    <div className="ph-mobile-card-number">1234 5678 9012 3456</div>
+
+    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
+      <div>
+        <div style={{ fontSize: "10px", opacity: 0.7 }}>VALID THRU</div>
+        <div style={{ fontWeight: 600 }}>12/28</div>
+      </div>
+    </div>
+
+    <div className="ph-mobile-card-name">{user.name}</div>
+  </div>
+
+  {/* BACK OF CARD */}
+  <div
+    style={{
+      marginTop: "12px",
+      borderRadius: "16px",
+      overflow: "hidden",
+      background: "#0f172a",
+      color: "white"
+    }}
+  >
+    {/* Magnetic strip */}
+    <div style={{ height: "40px", background: "#111", marginTop: "16px" }} />
+
+    {/* Signature + CVC */}
+    <div style={{ padding: "16px" }}>
+      <div
+        style={{
+          background: "#e5e7eb",
+          height: "36px",
+          borderRadius: "6px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          paddingRight: "10px",
+          color: "#111",
+          fontWeight: 700
+        }}
+      >
+        123
+      </div>
+
+      <div style={{ fontSize: "12px", marginTop: "8px", opacity: 0.8 }}>
+        CVC
+      </div>
+
+      <div style={{ fontSize: "11px", marginTop: "10px", opacity: 0.6 }}>
+        Training card only · Not a real bank card
+      </div>
+    </div>
+  </div>
+
+</div>
 
             <div className="ph-account-detail-row" style={{ marginTop: "16px" }}>
               <span>Status</span>
