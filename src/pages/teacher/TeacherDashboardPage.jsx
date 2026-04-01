@@ -8,7 +8,8 @@ import {
   getClassGroups,
   getAllTransactions,
   getPendingShopOrders,
-  resetMockBankingState
+  resetMockBankingState,
+  createRecurringPayment
 } from "../../services/bankService.js";
 import useBankRefresh from "../../hooks/useBankRefresh.js";
 
@@ -99,31 +100,27 @@ export default function TeacherDashboardPage() {
     setFormError("");
   }
 
-  function handlePaymentSubmit(event) {
-    event.preventDefault();
-    setFormError("");
+ function handlePaymentSubmit(event) {
+  event.preventDefault();
+  setFormError("");
 
-    if (!paymentForm.statementName.trim()) {
-      setFormError("Enter a statement name.");
-      return;
-    }
+  if (!paymentForm.statementName.trim()) {
+    setFormError("Enter a statement name.");
+    return;
+  }
 
-    const numericAmount = Number(paymentForm.amount);
-    if (!numericAmount || numericAmount <= 0) {
-      setFormError("Enter an amount greater than 0.");
-      return;
-    }
+  const numericAmount = Number(paymentForm.amount);
+  if (!numericAmount || numericAmount <= 0) {
+    setFormError("Enter an amount greater than 0.");
+    return;
+  }
 
-    if (paymentForm.repeat !== "one-off") {
-      setFormError("Monthly payments will be added in the next update. Please use one-off for now.");
-      return;
-    }
+  const finalAmount =
+    paymentForm.type === "take"
+      ? -Math.abs(numericAmount)
+      : Math.abs(numericAmount);
 
-    const finalAmount =
-      paymentForm.type === "take"
-        ? -Math.abs(numericAmount)
-        : Math.abs(numericAmount);
-
+  if (paymentForm.repeat === "one-off") {
     addTransactionToStudents(selectedStudentIds, {
       description: paymentForm.statementName,
       category: paymentForm.type === "take" ? "Deduction" : "Pay",
@@ -137,7 +134,27 @@ export default function TeacherDashboardPage() {
     );
 
     closePaymentModal();
+    return;
   }
+
+  if (paymentForm.repeat === "weekly") {
+    createRecurringPayment({
+      studentIds: selectedStudentIds,
+      statementName: paymentForm.statementName,
+      amount: numericAmount,
+      type: paymentForm.type,
+      startDate: paymentForm.date,
+      frequency: "weekly"
+    });
+
+    window.alert(
+      `Weekly ${paymentForm.type === "take" ? "deduction" : "payment"} set up for ${selectedStudentIds.length} student${selectedStudentIds.length === 1 ? "" : "s"}.`
+    );
+
+    closePaymentModal();
+    return;
+  }
+}
 
   return (
     <AppShell
@@ -434,7 +451,7 @@ export default function TeacherDashboardPage() {
                   }
                 >
                   <option value="one-off">One-off</option>
-                  <option value="monthly">Monthly (next update)</option>
+<option value="weekly">Weekly</option>
                 </select>
               </label>
 

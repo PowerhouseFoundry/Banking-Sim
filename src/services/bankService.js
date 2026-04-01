@@ -1204,16 +1204,12 @@ export function applyMonthlyUpdate(runDate = todayDate()) {
 
   const OVERDRAFT_RATE = 0.35 / 12; // 35% yearly split monthly
 
-  (state.recurringPayments || []).forEach((payment) => {
-    if (!payment.active) {
-      return;
-    }
+(state.recurringPayments || []).forEach((payment) => {
+  if (!payment.active) {
+    return;
+  }
 
-    const safeMonthlyDay = Math.min(
-      Math.max(Number(payment.monthlyDay) || new Date(payment.nextDueDate).getDate() || 1, 1),
-      28
-    );
-
+  if (payment.frequency === "weekly") {
     while (payment.nextDueDate && payment.nextDueDate <= runDate) {
       const validStudentIds = [...new Set(payment.studentIds || [])].filter(Boolean);
 
@@ -1226,7 +1222,7 @@ export function applyMonthlyUpdate(runDate = todayDate()) {
           accountId: account.id,
           studentId,
           date: payment.nextDueDate,
-          description: payment.statementName || "MONTHLY PAYMENT",
+          description: payment.statementName || "WEEKLY PAYMENT",
           category: payment.amount < 0 ? "Deduction" : "Pay",
           amount: Number(payment.amount) || 0,
           suspicious: false
@@ -1239,7 +1235,7 @@ export function applyMonthlyUpdate(runDate = todayDate()) {
             state,
             studentId,
             "success",
-            "Monthly payment added",
+            "Weekly payment added",
             `${payment.statementName} has been added to your account.`
           );
         } else {
@@ -1247,15 +1243,67 @@ export function applyMonthlyUpdate(runDate = todayDate()) {
             state,
             studentId,
             "info",
-            "Monthly payment taken",
+            "Weekly payment taken",
             `${payment.statementName} has been taken from your account.`
           );
         }
       });
 
-      payment.nextDueDate = addOneMonthToDueDate(payment.nextDueDate, safeMonthlyDay);
+      const next = new Date(`${payment.nextDueDate}T00:00:00`);
+      next.setDate(next.getDate() + 7);
+      payment.nextDueDate = next.toISOString().slice(0, 10);
     }
-  });
+
+    return;
+  }
+
+  const safeMonthlyDay = Math.min(
+    Math.max(Number(payment.monthlyDay) || new Date(payment.nextDueDate).getDate() || 1, 1),
+    28
+  );
+
+  while (payment.nextDueDate && payment.nextDueDate <= runDate) {
+    const validStudentIds = [...new Set(payment.studentIds || [])].filter(Boolean);
+
+    validStudentIds.forEach((studentId) => {
+      const account = state.accounts.find((item) => item.studentId === studentId);
+      if (!account) return;
+
+      state.transactions.unshift({
+        id: createId("txn"),
+        accountId: account.id,
+        studentId,
+        date: payment.nextDueDate,
+        description: payment.statementName || "MONTHLY PAYMENT",
+        category: payment.amount < 0 ? "Deduction" : "Pay",
+        amount: Number(payment.amount) || 0,
+        suspicious: false
+      });
+
+      account.balance = Number((account.balance + Number(payment.amount || 0)).toFixed(2));
+
+      if (Number(payment.amount) >= 0) {
+        addNotification(
+          state,
+          studentId,
+          "success",
+          "Monthly payment added",
+          `${payment.statementName} has been added to your account.`
+        );
+      } else {
+        addNotification(
+          state,
+          studentId,
+          "info",
+          "Monthly payment taken",
+          `${payment.statementName} has been taken from your account.`
+        );
+      }
+    });
+
+    payment.nextDueDate = addOneMonthToDueDate(payment.nextDueDate, safeMonthlyDay);
+  }
+});
 
   state.accounts.forEach((account) => {
     const studentId = account.studentId;
