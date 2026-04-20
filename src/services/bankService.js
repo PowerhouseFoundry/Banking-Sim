@@ -319,6 +319,17 @@ function readState() {
 
 async function readStateForLogin() {
   await waitForBankState();
+  await ensureFirebaseReady();
+
+  try {
+    const snapshot = await getDoc(STATE_DOC);
+
+    if (snapshot.exists()) {
+      return setMemoryState(snapshot.data());
+    }
+  } catch (error) {
+    console.error("Failed to fetch latest bank state for login:", error);
+  }
 
   if (memoryState) {
     return memoryState;
