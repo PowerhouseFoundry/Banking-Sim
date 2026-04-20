@@ -316,7 +316,6 @@ function readState() {
   startFirestoreSync();
   return memoryState || readLocalCache() || getDefaultState();
 }
-
 async function readStateForLogin() {
   await waitForBankState();
   await ensureFirebaseReady();
@@ -360,7 +359,9 @@ function writeState(nextState) {
 
   return cleanState;
 }
-
+export function waitForPendingBankSave() {
+  return saveQueue;
+}
 export function resetBankState() {
   return writeState(clone(seedState));
 }

@@ -15,7 +15,8 @@ import {
   getStudentLoginDetails,
   getStudentTransactions,
   updateStudent,
-  updateStudentLogin
+    updateStudentLogin,
+  waitForPendingBankSave
 } from "../../services/bankService.js";
 import useBankRefresh from "../../hooks/useBankRefresh.js";
 
@@ -131,7 +132,7 @@ export default function TeacherStudentDetailPage() {
     deleteDirectDebit(item.id);
   }
 
-  function handleEditUsername() {
+  async function handleEditUsername() {
     const nextUsername = window.prompt(
       `Edit username for ${student.name}`,
       login?.username || ""
@@ -141,13 +142,14 @@ export default function TeacherStudentDetailPage() {
 
     try {
       updateStudentLogin(studentId, { username: nextUsername });
+      await waitForPendingBankSave();
       window.alert("Username updated.");
     } catch (error) {
       window.alert(error.message || "Could not update username.");
     }
   }
 
-  function handleEditPassword() {
+  async function handleEditPassword() {
     const nextPassword = window.prompt(
       `Edit password for ${student.name}`,
       login?.password || "student123"
@@ -157,6 +159,7 @@ export default function TeacherStudentDetailPage() {
 
     try {
       updateStudentLogin(studentId, { password: nextPassword });
+      await waitForPendingBankSave();
       window.alert("Password updated.");
     } catch (error) {
       window.alert(error.message || "Could not update password.");

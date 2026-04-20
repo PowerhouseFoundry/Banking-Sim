@@ -7,7 +7,8 @@ import {
   getAllStudents,
   getClassGroups,
   updateStudent,
-  updateStudentLogin,
+    updateStudentLogin,
+  waitForPendingBankSave,
   resetStudentPassword,
   resetStudentBalance,
   deleteStudent
@@ -110,7 +111,7 @@ export default function TeacherStudentsPage() {
     });
   }
 
-  function handleEditUsername(student) {
+  async function handleEditUsername(student) {
     const newUsername = window.prompt(
       `Edit username for ${student.name}`,
       student.login?.username || ""
@@ -120,13 +121,14 @@ export default function TeacherStudentsPage() {
 
     try {
       updateStudentLogin(student.id, { username: newUsername });
+      await waitForPendingBankSave();
       window.alert("Username updated.");
     } catch (error) {
       window.alert(error.message || "Could not update username.");
     }
   }
 
-  function handleEditPassword(student) {
+  async function handleEditPassword(student) {
     const newPassword = window.prompt(
       `Edit password for ${student.name}`,
       student.login?.password || "student123"
@@ -136,6 +138,7 @@ export default function TeacherStudentsPage() {
 
     try {
       updateStudentLogin(student.id, { password: newPassword });
+      await waitForPendingBankSave();
       window.alert("Password updated.");
     } catch (error) {
       window.alert(error.message || "Could not update password.");
