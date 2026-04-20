@@ -8,7 +8,6 @@ import {
   getClassGroups,
   getAllTransactions,
   getPendingShopOrders,
-  resetMockBankingState,
   createRecurringPayment
 } from "../../services/bankService.js";
 import useBankRefresh from "../../hooks/useBankRefresh.js";
@@ -258,15 +257,7 @@ export default function TeacherDashboardPage() {
             ? `Showing students in ${selectedClass}`
             : "Select a class to view students"
         }
-        action={
-          <button
-            className="ph-button ph-button-secondary ph-button-small"
-            type="button"
-            onClick={resetMockBankingState}
-          >
-            Reset demo data
-          </button>
-        }
+
       >
         <div className="ph-teacher-toolbar">
           <label className="ph-teacher-select-all">
