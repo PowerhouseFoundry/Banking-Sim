@@ -87,7 +87,7 @@ export default function TeacherTransactionsPage() {
     amount: "",
     date: new Date().toISOString().slice(0, 10)
   });
-
+const [activeStudentClass, setActiveStudentClass] = useState(classGroups[0] || "");
   useEffect(() => {
     savePresets(REWARD_PRESETS_KEY, rewardPresets);
   }, [rewardPresets]);
