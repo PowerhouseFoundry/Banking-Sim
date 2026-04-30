@@ -42,7 +42,7 @@ export default function TeacherTransactionsPage() {
 
   const [tab, setTab] = useState("bills");
   const [formError, setFormError] = useState("");
-  const [activeBillClass, setActiveBillClass] = useState("All");
+  const [activeStudentClass, setActiveStudentClass] = useState(classGroups[0] || "");
 
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
@@ -116,21 +116,7 @@ export default function TeacherTransactionsPage() {
       (item) => item.frequency === "monthly" && Number(item.amount) < 0
     );
   }, [recurringPayments]);
-const visibleMonthlyBills = useMemo(() => {
-  if (activeBillClass === "All") {
-    return monthlyBills;
-  }
 
-  const classStudentIds = new Set(
-    students
-      .filter((student) => student.classGroup === activeBillClass)
-      .map((student) => student.id)
-  );
-
-  return monthlyBills.filter((bill) =>
-    (bill.studentIds || []).some((studentId) => classStudentIds.has(studentId))
-  );
-}, [monthlyBills, activeBillClass, students]);
   function toggleStudent(studentId) {
     setSelectedStudentIds((current) =>
       current.includes(studentId)
@@ -503,39 +489,11 @@ const visibleMonthlyBills = useMemo(() => {
             title="Current monthly bills"
             description="These are the recurring bills already set up."
           >
-            <div className="ph-class-toggle-bar" style={{ marginBottom: "16px", flexWrap: "wrap" }}>
-  <button
-    type="button"
-    className={
-      activeBillClass === "All"
-        ? "ph-button ph-button-primary"
-        : "ph-button ph-button-secondary"
-    }
-    onClick={() => setActiveBillClass("All")}
-  >
-    All
-  </button>
-
-  {classGroups.map((group) => (
-    <button
-      key={group}
-      type="button"
-      className={
-        activeBillClass === group
-          ? "ph-button ph-button-primary"
-          : "ph-button ph-button-secondary"
-      }
-      onClick={() => setActiveBillClass(group)}
-    >
-      {group}
-    </button>
-  ))}
-</div>
-            {visibleMonthlyBills.length === 0 ? (
+            {monthlyBills.length === 0 ? (
               <p className="ph-muted">No monthly bills have been added yet.</p>
             ) : (
               <div className="ph-recurring-list">
-                {visibleMonthlyBills.map((item) => (
+                {monthlyBills.map((item) => (
                   <div key={item.id} className="ph-recurring-card">
                     <div>
                       <h4>{item.statementName}</h4>
