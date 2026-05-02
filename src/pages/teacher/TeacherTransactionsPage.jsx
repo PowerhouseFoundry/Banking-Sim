@@ -3,11 +3,13 @@ import AppShell from "../../components/layout/AppShell.jsx";
 import SectionCard from "../../components/common/SectionCard.jsx";
 import {
   addTransactionToStudents,
+  applyMonthlyUpdate,
   createRecurringPayment,
   deleteRecurringPayment,
   getAllStudents,
   getClassGroups,
-  getRecurringPayments
+  getRecurringPayments,
+  waitForPendingBankSave
 } from "../../services/bankService.js";
 import useBankRefresh from "../../hooks/useBankRefresh.js";
 
@@ -207,7 +209,23 @@ const visibleMonthlyBills = useMemo(() => {
       setFormError(error.message || "Could not save monthly bill.");
     }
   }
+async function handleRunDueBillsNow() {
+  setFormError("");
 
+  const confirmed = window.confirm(
+    "Run all bills due today or earlier? This will deduct money from student accounts and add transactions. Continue?"
+  );
+
+  if (!confirmed) return;
+
+  try {
+    applyMonthlyUpdate(new Date().toISOString().slice(0, 10));
+    await waitForPendingBankSave();
+    window.alert("Due bills have been processed.");
+  } catch (error) {
+    setFormError(error.message || "Could not run due bills.");
+  }
+}
   function applyPresetToSelectedStudents(preset, type) {
     setFormError("");
 
@@ -530,6 +548,15 @@ const visibleMonthlyBills = useMemo(() => {
       {group}
     </button>
   ))}
+</div>
+<div style={{ marginBottom: "16px" }}>
+  <button
+    className="ph-button ph-button-primary"
+    type="button"
+    onClick={handleRunDueBillsNow}
+  >
+    Run due bills now
+  </button>
 </div>
             {visibleMonthlyBills.length === 0 ? (
               <p className="ph-muted">No monthly bills have been added yet.</p>
