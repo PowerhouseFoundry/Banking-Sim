@@ -35,7 +35,20 @@ function generateSortCode() {
 function generateAccountNumber() {
   return Math.floor(10000000 + Math.random() * 90000000).toString();
 }
+function generateCardNumber() {
+  const part = () => Math.floor(1000 + Math.random() * 9000).toString();
+  return `${part()} ${part()} ${part()} ${part()}`;
+}
 
+function generateCardExpiry() {
+  const month = String(Math.floor(1 + Math.random() * 12)).padStart(2, "0");
+  const year = String(new Date().getFullYear() + 3).slice(2);
+  return `${month}/${year}`;
+}
+
+function generateCardCvc() {
+  return Math.floor(100 + Math.random() * 900).toString();
+}
 function clone(data) {
   return JSON.parse(JSON.stringify(data));
 }
@@ -205,14 +218,17 @@ function ensureStateShape(state) {
     }
   });
 
-  nextState.accounts = nextState.accounts.map((account) => ({
-    ...account,
-    sortCode: account.sortCode || generateSortCode(),
-    accountNumber: account.accountNumber || generateAccountNumber(),
-    savingsBalance: Number(account.savingsBalance || 0),
-    cardStatus: account.cardStatus || "active",
-    accountType: account.accountType || "personal"
-  }));
+nextState.accounts = nextState.accounts.map((account) => ({
+  ...account,
+  sortCode: account.sortCode || generateSortCode(),
+  accountNumber: account.accountNumber || generateAccountNumber(),
+  cardNumber: account.cardNumber || generateCardNumber(),
+  cardExpiry: account.cardExpiry || generateCardExpiry(),
+  cardCvc: account.cardCvc || generateCardCvc(),
+  savingsBalance: Number(account.savingsBalance || 0),
+  cardStatus: account.cardStatus || "active",
+  accountType: account.accountType || "personal"
+}));
 
   if (!nextState.businessAccount) {
     nextState.businessAccount = {
@@ -664,8 +680,11 @@ export function addStudent({
     accountName: "Everyday Account",
     cardStatus: "active",
     sortCode: generateSortCode(),
-    accountNumber: generateAccountNumber(),
-    accountType: "personal"
+  accountNumber: generateAccountNumber(),
+cardNumber: generateCardNumber(),
+cardExpiry: generateCardExpiry(),
+cardCvc: generateCardCvc(),
+accountType: "personal"
   });
 
   const desiredUsername = (username || "").trim();

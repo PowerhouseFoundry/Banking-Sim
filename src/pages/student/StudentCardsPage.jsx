@@ -70,7 +70,7 @@ export default function StudentCardsPage() {
                   >
                     <div className="ph-mobile-card-brand">Powerhouse Banking</div>
 
-                    <div className="ph-mobile-card-number">1234 5678 9012 3456</div>
+                    <div className="ph-mobile-card-number">{account?.cardNumber || "0000 0000 0000 0000"}</div>
 
                     <div
                       style={{
@@ -82,9 +82,9 @@ export default function StudentCardsPage() {
                     >
                       <div>
                         <div style={{ fontSize: "10px", opacity: 0.7, letterSpacing: "0.06em" }}>
-                          VALID THRU
+                          EXPIRY DATE
                         </div>
-                        <div style={{ fontWeight: 700 }}>12/28</div>
+                        <div style={{ fontWeight: 700 }}>{account?.cardExpiry || "12/28"}</div>
                       </div>
 
                       <div style={{ fontSize: "12px", opacity: 0.8 }}>
