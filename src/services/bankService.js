@@ -1742,6 +1742,31 @@ export function getRecurringPayments() {
   }));
 }
 
+function normaliseRecurringName(value) {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normaliseStudentIdList(ids = []) {
+  return [...new Set(ids || [])].filter(Boolean).sort();
+}
+
+function sameStudentIdList(first = [], second = []) {
+  const a = normaliseStudentIdList(first);
+  const b = normaliseStudentIdList(second);
+
+  if (a.length !== b.length) return false;
+
+  return a.every((id, index) => id === b[index]);
+}
+
+function getInitialRecurringDueDate(frequency, safeStartDate, safeMonthlyDay) {
+  if (frequency === "weekly") {
+    return safeStartDate;
+  }
+
+  return getNextMonthlyDueDate(safeStartDate, safeMonthlyDay);
+}
+
 export function createRecurringPayment({
   studentIds,
   statementName,
@@ -1753,7 +1778,7 @@ export function createRecurringPayment({
 }) {
   const state = readState();
 
-  const validStudentIds = [...new Set(studentIds || [])].filter(Boolean);
+  const validStudentIds = normaliseStudentIdList(studentIds);
 
   if (validStudentIds.length === 0) {
     throw new Error("Select at least one student.");
@@ -1764,20 +1789,39 @@ export function createRecurringPayment({
     throw new Error("Enter an amount greater than 0.");
   }
 
+  const safeFrequency = frequency === "weekly" ? "weekly" : "monthly";
   const safeMonthlyDay = Math.min(Math.max(Number(monthlyDay) || 1, 1), 28);
   const safeStartDate = startDate || todayDate();
+  const safeStatementName = statementName?.trim() || (safeFrequency === "weekly" ? "Weekly payment" : "Monthly payment");
   const finalAmount = type === "take" ? -Math.abs(numericAmount) : Math.abs(numericAmount);
+
+  const duplicatePayment = (state.recurringPayments || []).find((payment) => {
+    if (payment.active === false) return false;
+
+    return (
+      payment.frequency === safeFrequency &&
+      normaliseRecurringName(payment.statementName) === normaliseRecurringName(safeStatementName) &&
+      Number(payment.amount || 0) === finalAmount &&
+      sameStudentIdList(payment.studentIds || [], validStudentIds)
+    );
+  });
+
+  if (duplicatePayment) {
+    throw new Error(
+      `This active ${safeFrequency} payment already exists. Check the recurring payments list before adding it again.`
+    );
+  }
 
   const recurringPayment = {
     id: createId("recurring"),
     studentIds: validStudentIds,
-    statementName: statementName?.trim() || "Monthly payment",
+    statementName: safeStatementName,
     amount: finalAmount,
     type: type || "add",
     startDate: safeStartDate,
     monthlyDay: safeMonthlyDay,
-    nextDueDate: getNextMonthlyDueDate(safeStartDate, safeMonthlyDay),
-    frequency,
+    nextDueDate: getInitialRecurringDueDate(safeFrequency, safeStartDate, safeMonthlyDay),
+    frequency: safeFrequency,
     active: true
   };
 

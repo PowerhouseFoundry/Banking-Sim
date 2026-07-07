@@ -137,20 +137,25 @@ export default function TeacherDashboardPage() {
   }
 
   if (paymentForm.repeat === "weekly") {
-    createRecurringPayment({
-      studentIds: selectedStudentIds,
-      statementName: paymentForm.statementName,
-      amount: numericAmount,
-      type: paymentForm.type,
-      startDate: paymentForm.date,
-      frequency: "weekly"
-    });
+    try {
+      createRecurringPayment({
+        studentIds: selectedStudentIds,
+        statementName: paymentForm.statementName,
+        amount: numericAmount,
+        type: paymentForm.type,
+        startDate: paymentForm.date,
+        frequency: "weekly"
+      });
 
-    window.alert(
-      `Weekly ${paymentForm.type === "take" ? "deduction" : "payment"} set up for ${selectedStudentIds.length} student${selectedStudentIds.length === 1 ? "" : "s"}.`
-    );
+      window.alert(
+        `Weekly ${paymentForm.type === "take" ? "deduction" : "payment"} set up for ${selectedStudentIds.length} student${selectedStudentIds.length === 1 ? "" : "s"}.`
+      );
 
-    closePaymentModal();
+      closePaymentModal();
+    } catch (error) {
+      setFormError(error.message || "Could not set up weekly payment.");
+    }
+
     return;
   }
 }

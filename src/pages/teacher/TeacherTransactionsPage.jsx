@@ -118,21 +118,34 @@ const [activeStudentClass, setActiveStudentClass] = useState(classGroups[0] || "
       (item) => item.frequency === "monthly" && Number(item.amount) < 0
     );
   }, [recurringPayments]);
-const visibleMonthlyBills = useMemo(() => {
-  if (activeBillClass === "All") {
-    return monthlyBills;
+
+  const weeklyPayments = useMemo(() => {
+    return recurringPayments.filter((item) => item.frequency === "weekly");
+  }, [recurringPayments]);
+
+  function filterRecurringPaymentsByClass(payments) {
+    if (activeBillClass === "All") {
+      return payments;
+    }
+
+    const classStudentIds = new Set(
+      students
+        .filter((student) => student.classGroup === activeBillClass)
+        .map((student) => student.id)
+    );
+
+    return payments.filter((payment) =>
+      (payment.studentIds || []).some((studentId) => classStudentIds.has(studentId))
+    );
   }
 
-  const classStudentIds = new Set(
-    students
-      .filter((student) => student.classGroup === activeBillClass)
-      .map((student) => student.id)
-  );
+  const visibleMonthlyBills = useMemo(() => {
+    return filterRecurringPaymentsByClass(monthlyBills);
+  }, [monthlyBills, activeBillClass, students]);
 
-  return monthlyBills.filter((bill) =>
-    (bill.studentIds || []).some((studentId) => classStudentIds.has(studentId))
-  );
-}, [monthlyBills, activeBillClass, students]);
+  const visibleWeeklyPayments = useMemo(() => {
+    return filterRecurringPaymentsByClass(weeklyPayments);
+  }, [weeklyPayments, activeBillClass, students]);
   function toggleStudent(studentId) {
     setSelectedStudentIds((current) =>
       current.includes(studentId)
@@ -588,6 +601,50 @@ async function handleRunDueBillsNow() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title="Active weekly payments"
+            description="Use this to check weekly pay or deductions before adding them again."
+          >
+            {visibleWeeklyPayments.length === 0 ? (
+              <p className="ph-muted">No weekly payments have been added yet.</p>
+            ) : (
+              <div className="ph-recurring-list">
+                {visibleWeeklyPayments.map((item) => {
+                  const amount = Number(item.amount || 0);
+                  const studentCount = item.studentIds?.length || item.studentNames?.length || 0;
+
+                  return (
+                    <div key={item.id} className="ph-recurring-card">
+                      <div>
+                        <h4>{item.statementName}</h4>
+                        <p className="ph-muted">
+                          {studentCount} student{studentCount === 1 ? "" : "s"}
+                        </p>
+                        <p className="ph-muted">
+                          Weekly · Next due: {item.nextDueDate || "Not set"}
+                        </p>
+                      </div>
+
+                      <div className="ph-recurring-actions">
+                        <div className={amount < 0 ? "ph-amount-out" : "ph-amount-in"}>
+                          {amount < 0 ? "-" : "+"}£{Math.abs(amount).toFixed(2)}
+                        </div>
+
+                        <button
+                          className="ph-button ph-button-secondary ph-button-small"
+                          type="button"
+                          onClick={() => deleteRecurringPayment(item.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </SectionCard>
