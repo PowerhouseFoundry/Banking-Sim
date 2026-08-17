@@ -17,6 +17,18 @@ function categoryIcon(category) {
   return "🛍️";
 }
 
+function ProductSymbol({ product, className }) {
+  return (
+    <span className={className} aria-hidden="true">
+      {product?.symbolDataUrl ? (
+        <img src={product.symbolDataUrl} alt="" />
+      ) : (
+        categoryIcon(product?.category)
+      )}
+    </span>
+  );
+}
+
 function formatMoney(value) {
   return `£${Number(value || 0).toFixed(2)}`;
 }
@@ -146,9 +158,7 @@ export default function ShopPage() {
 
         <main className="ph-shop-narrow">
           <section className="ph-shop-checkout-card">
-            <div className="ph-shop-checkout-icon" aria-hidden="true">
-              {categoryIcon(selectedProduct.category)}
-            </div>
+            <ProductSymbol product={selectedProduct} className="ph-shop-checkout-icon" />
             <p className="ph-shop-kicker">Confirm your purchase</p>
             <h1>{selectedProduct.name}</h1>
             <p className="ph-shop-category">{selectedProduct.category}</p>
@@ -242,7 +252,7 @@ export default function ShopPage() {
                     key={product.id}
                     onClick={() => selectProduct(product)}
                   >
-                    <span className="ph-shop-product-icon" aria-hidden="true">{categoryIcon(product.category)}</span>
+                    <ProductSymbol product={product} className="ph-shop-product-icon" />
                     <span className="ph-shop-product-name">{product.name}</span>
                     <span className="ph-shop-product-price">{formatMoney(product.price)}</span>
                     <span className="ph-shop-product-action">Select item →</span>

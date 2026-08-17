@@ -2210,3 +2210,114 @@ body {
     font-size: 10pt;
   }
 }
+
+/* Shop custom product symbols */
+.ph-shop-product-icon,
+.ph-shop-checkout-icon {
+  overflow: hidden;
+}
+
+.ph-shop-product-icon img,
+.ph-shop-checkout-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 5px;
+  box-sizing: border-box;
+}
+
+.ph-shop-checkout-icon img {
+  padding: 7px;
+}
+
+.ph-shop-admin-product {
+  grid-template-columns: 70px minmax(0, 1fr) 120px auto;
+}
+
+.ph-shop-admin-symbol-preview {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid #dfe5ee;
+  border-radius: 16px;
+  background: #f5f8fc;
+  overflow: hidden;
+  font-size: 1.65rem;
+}
+
+.ph-shop-admin-symbol-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 5px;
+  box-sizing: border-box;
+}
+
+.ph-shop-admin-edit-fields {
+  grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.8fr) 150px auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.ph-shop-upload-button {
+  position: relative;
+  cursor: pointer;
+}
+
+.ph-shop-upload-button input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ph-shop-upload-button-disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+@media (max-width: 980px) {
+  .ph-shop-admin-product {
+    grid-template-columns: 70px minmax(0, 1fr) auto;
+  }
+
+  .ph-shop-admin-product-price {
+    grid-column: 3;
+  }
+
+  .ph-shop-admin-actions {
+    grid-column: 2 / -1;
+  }
+
+  .ph-shop-admin-edit-fields {
+    grid-column: 2 / -1;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .ph-shop-admin-product {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .ph-shop-admin-symbol-preview {
+    width: 58px;
+    height: 58px;
+  }
+
+  .ph-shop-admin-product-price,
+  .ph-shop-admin-actions,
+  .ph-shop-admin-edit-fields {
+    grid-column: 1 / -1;
+  }
+
+  .ph-shop-admin-edit-fields {
+    grid-template-columns: 1fr;
+  }
+}

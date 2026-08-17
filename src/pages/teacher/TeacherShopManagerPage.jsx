@@ -12,9 +12,79 @@ import {
 } from "../../services/bankService.js";
 
 const SHOP_URL = "https://plc-bank-simulator.onrender.com/?shop=1";
+const MAX_SYMBOL_SOURCE_BYTES = 5 * 1024 * 1024;
+const MAX_SYMBOL_SIDE = 192;
 
 function formatMoney(value) {
   return `£${Number(value || 0).toFixed(2)}`;
+}
+
+function categoryIcon(category) {
+  const value = (category || "").toLowerCase();
+  if (value.includes("drink")) return "☕";
+  if (value.includes("snack") || value.includes("tuck")) return "🍫";
+  if (value.includes("food")) return "🥪";
+  return "🛍️";
+}
+
+function resizeSymbolFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type?.startsWith("image/")) {
+      reject(new Error("Choose an image file for the product symbol."));
+      return;
+    }
+
+    if (file.size > MAX_SYMBOL_SOURCE_BYTES) {
+      reject(new Error("That image is too large. Choose an image smaller than 5 MB."));
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      try {
+        const scale = Math.min(1, MAX_SYMBOL_SIDE / Math.max(image.naturalWidth, image.naturalHeight));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext("2d");
+        if (!context) {
+          throw new Error("This browser could not prepare the symbol image.");
+        }
+
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.clearRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+
+        let dataUrl = canvas.toDataURL("image/webp", 0.82);
+        if (!dataUrl.startsWith("data:image/webp")) {
+          dataUrl = canvas.toDataURL("image/png");
+        }
+
+        if (dataUrl.length > 140000) {
+          throw new Error("That symbol is still too large after resizing. Try a simpler or smaller image.");
+        }
+
+        resolve(dataUrl);
+      } catch (error) {
+        reject(error);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("That image could not be opened. Try a PNG, JPG or WebP image."));
+    };
+
+    image.src = objectUrl;
+  });
 }
 
 export default function TeacherShopManagerPage() {
@@ -24,6 +94,7 @@ export default function TeacherShopManagerPage() {
   const [form, setForm] = useState({ name: "", category: "Drinks", price: "" });
   const [editingId, setEditingId] = useState("");
   const [editForm, setEditForm] = useState({ name: "", category: "", price: "" });
+  const [symbolUploadingId, setSymbolUploadingId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -43,7 +114,7 @@ export default function TeacherShopManagerPage() {
     try {
       addShopProduct(form);
       setForm({ name: "", category: form.category || "Drinks", price: "" });
-      setMessage("Product added to the shop.");
+      setMessage("Product added to the shop. You can now upload its symbol below.");
     } catch (err) {
       setError(err.message || "Could not add product.");
     }
@@ -68,6 +139,36 @@ export default function TeacherShopManagerPage() {
       setMessage("Product updated.");
     } catch (err) {
       setError(err.message || "Could not update product.");
+    }
+  }
+
+  async function handleSymbolUpload(product, event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    clearFeedback();
+    setSymbolUploadingId(product.id);
+
+    try {
+      const symbolDataUrl = await resizeSymbolFile(file);
+      updateShopProduct(product.id, { symbolDataUrl });
+      setMessage(`Symbol updated for ${product.name}.`);
+    } catch (err) {
+      setError(err.message || "Could not upload that symbol.");
+    } finally {
+      setSymbolUploadingId("");
+    }
+  }
+
+  function handleRemoveSymbol(product) {
+    clearFeedback();
+
+    try {
+      updateShopProduct(product.id, { symbolDataUrl: "" });
+      setMessage(`Custom symbol removed from ${product.name}.`);
+    } catch (err) {
+      setError(err.message || "Could not remove the symbol.");
     }
   }
 
@@ -144,7 +245,7 @@ export default function TeacherShopManagerPage() {
 
         <SectionCard
           title="Add a product"
-          description="Add drinks, snacks, tuck shop items or other products."
+          description="Add drinks, snacks, tuck shop items or other products. Add the product first, then upload its symbol below."
         >
           <form className="ph-shop-add-form" onSubmit={handleAdd}>
             <label className="ph-field">
@@ -199,7 +300,7 @@ export default function TeacherShopManagerPage() {
 
       <SectionCard
         title="Shop products"
-        description="Edit a price or product name at any time. Hide an item when it is unavailable."
+        description="Upload your own Widgit or other product symbol for each item. Edit prices or hide unavailable products at any time."
       >
         {products.length === 0 ? (
           <p className="ph-muted">No products have been added yet.</p>
@@ -207,11 +308,20 @@ export default function TeacherShopManagerPage() {
           <div className="ph-shop-admin-product-list">
             {products.map((product) => {
               const editing = editingId === product.id;
+              const uploading = symbolUploadingId === product.id;
 
               return (
                 <div className={`ph-shop-admin-product ${product.active === false ? "ph-shop-admin-product-inactive" : ""}`} key={product.id}>
+                  <div className="ph-shop-admin-symbol-preview" aria-label={`Symbol preview for ${product.name}`}>
+                    {product.symbolDataUrl ? (
+                      <img src={product.symbolDataUrl} alt="" />
+                    ) : (
+                      <span aria-hidden="true">{categoryIcon(product.category)}</span>
+                    )}
+                  </div>
+
                   {editing ? (
-                    <>
+                    <div className="ph-shop-admin-edit-fields">
                       <input
                         className="ph-input"
                         value={editForm.name}
@@ -240,7 +350,7 @@ export default function TeacherShopManagerPage() {
                         <button className="ph-button ph-button-primary ph-button-small" type="button" onClick={() => saveEdit(product.id)}>Save</button>
                         <button className="ph-button ph-button-secondary ph-button-small" type="button" onClick={() => setEditingId("")}>Cancel</button>
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <>
                       <div className="ph-shop-admin-product-main">
@@ -254,6 +364,20 @@ export default function TeacherShopManagerPage() {
                       </div>
                       <div className="ph-shop-admin-product-price">{formatMoney(product.price)}</div>
                       <div className="ph-inline-actions ph-shop-admin-actions">
+                        <label className={`ph-button ph-button-secondary ph-button-small ph-shop-upload-button ${uploading ? "ph-shop-upload-button-disabled" : ""}`}>
+                          {uploading ? "Uploading…" : product.symbolDataUrl ? "Change symbol" : "Upload symbol"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={uploading}
+                            onChange={(event) => handleSymbolUpload(product, event)}
+                          />
+                        </label>
+                        {product.symbolDataUrl ? (
+                          <button className="ph-button ph-button-secondary ph-button-small" type="button" onClick={() => handleRemoveSymbol(product)}>
+                            Remove symbol
+                          </button>
+                        ) : null}
                         <button className="ph-button ph-button-secondary ph-button-small" type="button" onClick={() => beginEdit(product)}>Edit</button>
                         <button className="ph-button ph-button-secondary ph-button-small" type="button" onClick={() => handleToggle(product)}>
                           {product.active === false ? "Show" : "Hide"}
