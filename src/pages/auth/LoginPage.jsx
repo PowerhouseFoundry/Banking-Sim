@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext.jsx";
 import logo from "../../assets/powerhouse-logo.png";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +26,12 @@ export default function LoginPage() {
       if (loggedInUser.role === "teacher") {
         navigate("/teacher/dashboard");
       } else {
-        navigate("/student/dashboard");
+        const requestedReturn = searchParams.get("returnTo") || "";
+        const safeShopReturn = requestedReturn.startsWith("/?shop=1")
+          ? requestedReturn
+          : "";
+
+        navigate(safeShopReturn || "/student/dashboard");
       }
     } catch (err) {
       setError(err.message || "Login failed.");

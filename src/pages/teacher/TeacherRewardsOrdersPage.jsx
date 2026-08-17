@@ -46,8 +46,9 @@ export default function TeacherRewardsOrdersPage() {
               <div key={order.id} className="ph-rewards-order-card">
                 <div className="ph-rewards-order-main">
                   <h4>{order.studentName}</h4>
-                  <p><strong>Purchase:</strong> {order.reference}</p>
-                  <p><strong>Date:</strong> {order.createdAt}</p>
+                  <p><strong>Purchase:</strong> {order.productName || order.reference}</p>
+                  {order.productCategory ? <p><strong>Category:</strong> {order.productCategory}</p> : null}
+                  <p><strong>Date:</strong> {new Date(order.createdAt).toLocaleString("en-GB")}</p>
                   <p><strong>Status:</strong> {order.status}</p>
                 </div>
 

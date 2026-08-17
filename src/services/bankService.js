@@ -6,7 +6,7 @@ import {
   mockStudents,
   mockTransactions
 } from "../data/mockData.js";
-import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { db, ensureFirebaseReady } from "./firebase.js";
 
 const LOCAL_CACHE_KEY = "powerhouseBankingStateCache";
@@ -52,6 +52,16 @@ function generateCardCvc() {
 function clone(data) {
   return JSON.parse(JSON.stringify(data));
 }
+
+const DEFAULT_SHOP_PRODUCTS = [
+  { id: "shop-coffee", name: "Coffee", category: "Drinks", price: 1.5, active: true },
+  { id: "shop-tea", name: "Tea", category: "Drinks", price: 1.2, active: true },
+  { id: "shop-hot-chocolate", name: "Hot chocolate", category: "Drinks", price: 1.8, active: true },
+  { id: "shop-water", name: "Bottled water", category: "Drinks", price: 1.0, active: true },
+  { id: "shop-crisps", name: "Crisps", category: "Snacks", price: 1.0, active: true },
+  { id: "shop-chocolate", name: "Chocolate bar", category: "Snacks", price: 1.2, active: true },
+  { id: "shop-biscuits", name: "Biscuit pack", category: "Snacks", price: 0.8, active: true }
+];
 
 function getBrowserStorage() {
   return typeof window !== "undefined" ? window.localStorage : null;
@@ -148,6 +158,7 @@ const seedState = {
   fraudReports: mockFraudReports,
   recurringPayments: [],
   shopOrders: [],
+  shopProducts: clone(DEFAULT_SHOP_PRODUCTS),
   logins: buildSeedLogins(),
   templates: []
 };
@@ -163,8 +174,17 @@ function ensureStateShape(state) {
   if (!Array.isArray(nextState.fraudReports)) nextState.fraudReports = [];
   if (!Array.isArray(nextState.recurringPayments)) nextState.recurringPayments = [];
   if (!Array.isArray(nextState.shopOrders)) nextState.shopOrders = [];
+  if (!Array.isArray(nextState.shopProducts)) nextState.shopProducts = clone(DEFAULT_SHOP_PRODUCTS);
   if (!Array.isArray(nextState.templates)) nextState.templates = [];
   if (!Array.isArray(nextState.logins)) nextState.logins = [];
+
+  nextState.shopProducts = nextState.shopProducts.map((product, index) => ({
+    id: product.id || createId("product"),
+    name: (product.name || `Product ${index + 1}`).trim(),
+    category: (product.category || "Other").trim(),
+    price: Math.max(0, Number(product.price || 0)),
+    active: product.active !== false
+  }));
 
   nextState.students = nextState.students.map((student) => {
     if (!student.userId) {
@@ -1418,6 +1438,227 @@ export function setCardStatus(studentId, status) {
 
   writeState(state);
   return account;
+}
+
+export function getShopProducts({ includeInactive = false } = {}) {
+  const state = readState();
+  const products = state.shopProducts || [];
+
+  return clone(
+    products
+      .filter((product) => includeInactive || product.active !== false)
+      .sort((a, b) => {
+        const categoryCompare = (a.category || "").localeCompare(b.category || "");
+        if (categoryCompare !== 0) return categoryCompare;
+        return (a.name || "").localeCompare(b.name || "");
+      })
+  );
+}
+
+export function getShopProductById(productId) {
+  const state = readState();
+  const product = (state.shopProducts || []).find((item) => item.id === productId);
+  return product ? clone(product) : null;
+}
+
+export function addShopProduct({ name, category, price }) {
+  const state = readState();
+  const cleanName = (name || "").trim();
+  const cleanCategory = (category || "Other").trim() || "Other";
+  const numericPrice = Number(price);
+
+  if (!cleanName) {
+    throw new Error("Enter a product name.");
+  }
+
+  if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+    throw new Error("Enter a price greater than £0.00.");
+  }
+
+  const product = {
+    id: createId("product"),
+    name: cleanName,
+    category: cleanCategory,
+    price: Number(numericPrice.toFixed(2)),
+    active: true
+  };
+
+  state.shopProducts.push(product);
+  writeState(state);
+  return clone(product);
+}
+
+export function updateShopProduct(productId, updates) {
+  const state = readState();
+  const product = (state.shopProducts || []).find((item) => item.id === productId);
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  if (updates.name !== undefined) {
+    const cleanName = (updates.name || "").trim();
+    if (!cleanName) throw new Error("Enter a product name.");
+    product.name = cleanName;
+  }
+
+  if (updates.category !== undefined) {
+    product.category = (updates.category || "Other").trim() || "Other";
+  }
+
+  if (updates.price !== undefined) {
+    const numericPrice = Number(updates.price);
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+      throw new Error("Enter a price greater than £0.00.");
+    }
+    product.price = Number(numericPrice.toFixed(2));
+  }
+
+  if (updates.active !== undefined) {
+    product.active = !!updates.active;
+  }
+
+  writeState(state);
+  return clone(product);
+}
+
+export function toggleShopProduct(productId) {
+  const state = readState();
+  const product = (state.shopProducts || []).find((item) => item.id === productId);
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  product.active = product.active === false;
+  writeState(state);
+  return clone(product);
+}
+
+export function deleteShopProduct(productId) {
+  const state = readState();
+  const product = (state.shopProducts || []).find((item) => item.id === productId);
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  state.shopProducts = state.shopProducts.filter((item) => item.id !== productId);
+  writeState(state);
+  return clone(product);
+}
+
+export async function purchaseShopProduct({ studentId, productId }) {
+  // Flush any queued save from this device before starting the atomic purchase.
+  // This keeps an earlier local edit from being written over the completed payment.
+  await waitForPendingBankSave();
+  await ensureFirebaseReady();
+
+  let committedState = null;
+  let result = null;
+
+  await runTransaction(db, async (firestoreTransaction) => {
+    const snapshot = await firestoreTransaction.get(STATE_DOC);
+
+    if (!snapshot.exists()) {
+      throw new Error("Bank data is not available. Please try again.");
+    }
+
+    const state = ensureStateShape(snapshot.data());
+    const product = (state.shopProducts || []).find((item) => item.id === productId);
+
+    if (!product || product.active === false) {
+      throw new Error("This product is no longer available.");
+    }
+
+    const senderAccount = state.accounts.find((account) => account.studentId === studentId);
+    const senderStudent = state.students.find((student) => student.id === studentId);
+    const businessAccount = state.businessAccount;
+
+    if (!senderAccount || !senderStudent) {
+      throw new Error("Student account not found.");
+    }
+
+    if (!businessAccount) {
+      throw new Error("Powerhouse shop account not found.");
+    }
+
+    if (senderAccount.cardStatus === "frozen") {
+      throw new Error("Payment declined. Your card is frozen.");
+    }
+
+    const price = Number(product.price);
+
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error("This product does not have a valid price.");
+    }
+
+    if (Number(senderAccount.balance || 0) < 0) {
+      throw new Error("Payment declined. You cannot pay while your account is overdrawn.");
+    }
+
+    if (Number(senderAccount.balance || 0) < price) {
+      throw new Error("Payment declined. You do not have enough money in your account.");
+    }
+
+    senderAccount.balance = Number((Number(senderAccount.balance || 0) - price).toFixed(2));
+    businessAccount.balance = Number((Number(businessAccount.balance || 0) + price).toFixed(2));
+
+    const paymentTransaction = {
+      id: createId("txn"),
+      accountId: senderAccount.id,
+      studentId,
+      date: todayDate(),
+      description: `POWERHOUSE SHOP - ${product.name.toUpperCase()}`,
+      category: "Shop purchase",
+      amount: -price,
+      suspicious: false,
+      reference: product.name
+    };
+
+    state.transactions.unshift(paymentTransaction);
+
+    const order = {
+      id: createId("order"),
+      studentId,
+      studentName: senderStudent.name,
+      amount: price,
+      reference: product.name,
+      productId: product.id,
+      productName: product.name,
+      productCategory: product.category,
+      source: "qr-shop",
+      createdAt: new Date().toISOString(),
+      status: "Approved",
+      paymentTransactionId: paymentTransaction.id,
+      refundTransactionId: null
+    };
+
+    state.shopOrders.unshift(order);
+
+    addNotification(
+      state,
+      studentId,
+      "info",
+      "Shop payment sent",
+      `£${price.toFixed(2)} paid for ${product.name}.`
+    );
+
+    firestoreTransaction.set(STATE_DOC, state);
+    committedState = state;
+    result = {
+      product: clone(product),
+      order: clone(order),
+      paymentTransaction: clone(paymentTransaction),
+      newBalance: senderAccount.balance
+    };
+  });
+
+  if (committedState) {
+    setMemoryState(committedState);
+  }
+
+  return result;
 }
 
 export function transferMoney({

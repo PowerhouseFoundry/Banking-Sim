@@ -224,13 +224,22 @@ export default function TeacherDashboardPage() {
         title="Rewards Shop Orders"
         description="Student purchases waiting for approval."
         action={
-          <button
-            className="ph-button ph-button-secondary ph-button-small"
-            type="button"
-            onClick={() => navigate("/teacher/rewards-orders")}
-          >
-            Open orders
-          </button>
+          <div className="ph-inline-actions">
+            <button
+              className="ph-button ph-button-secondary ph-button-small"
+              type="button"
+              onClick={() => navigate("/teacher/shop-manager")}
+            >
+              Shop & QR
+            </button>
+            <button
+              className="ph-button ph-button-secondary ph-button-small"
+              type="button"
+              onClick={() => navigate("/teacher/rewards-orders")}
+            >
+              Open orders
+            </button>
+          </div>
         }
       >
         {pendingShopOrders.length === 0 ? (

@@ -2,7 +2,6 @@ import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/layout/ProtectedRoute.jsx";
 import RoleRoute from "./components/layout/RoleRoute.jsx";
-import LoginPage from "./pages/auth/LoginPage.jsx";
 import StudentDashboardPage from "./pages/student/StudentDashboardPage.jsx";
 import StudentMyDetailsPage from "./pages/student/StudentMyDetailsPage.jsx";
 import StudentTransactionsPage from "./pages/student/StudentTransactionsPage.jsx";
@@ -28,11 +27,13 @@ import TeacherRewardsOrdersPage from "./pages/teacher/TeacherRewardsOrdersPage.j
 import HelpPage from "./pages/shared/HelpPage.jsx";
 import NotFoundPage from "./pages/shared/NotFoundPage.jsx";
 import UnauthorizedPage from "./pages/shared/UnauthorizedPage.jsx";
+import EntryPage from "./pages/shared/EntryPage.jsx";
+import TeacherShopManagerPage from "./pages/teacher/TeacherShopManagerPage.jsx";
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<LoginPage />} />
+      <Route path="/" element={<EntryPage />} />
 
       <Route
         path="/student/dashboard"
@@ -131,6 +132,10 @@ export default function App() {
       <Route
         path="/teacher/rewards-orders"
         element={<ProtectedRoute><RoleRoute allowedRoles={["teacher"]}><TeacherRewardsOrdersPage /></RoleRoute></ProtectedRoute>}
+      />
+      <Route
+        path="/teacher/shop-manager"
+        element={<ProtectedRoute><RoleRoute allowedRoles={["teacher"]}><TeacherShopManagerPage /></RoleRoute></ProtectedRoute>}
       />
 
       <Route path="/help" element={<ProtectedRoute><HelpPage /></ProtectedRoute>} />

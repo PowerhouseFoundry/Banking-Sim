@@ -55,6 +55,8 @@ export default function AppShell({ title, subtitle, children }) {
               <ShellLink to="/teacher/students">Students</ShellLink>
               <ShellLink to="/teacher/transactions">Transactions</ShellLink>
               <ShellLink to="/teacher/reports">Fraud reports</ShellLink>
+              <ShellLink to="/teacher/shop-manager">Shop & QR</ShellLink>
+              <ShellLink to="/teacher/rewards-orders">Shop orders</ShellLink>
               
             </>
           )}
