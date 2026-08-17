@@ -8,12 +8,13 @@ import {
   deleteShopProduct,
   getShopProducts,
   toggleShopProduct,
-  updateShopProduct
+  updateShopProduct,
+  updateShopProductSymbol
 } from "../../services/bankService.js";
 
 const SHOP_URL = "https://plc-bank-simulator.onrender.com/?shop=1";
 const MAX_SYMBOL_SOURCE_BYTES = 5 * 1024 * 1024;
-const MAX_SYMBOL_SIDE = 192;
+const MAX_SYMBOL_SIDE = 256;
 
 function formatMoney(value) {
   return `£${Number(value || 0).toFixed(2)}`;
@@ -152,23 +153,27 @@ export default function TeacherShopManagerPage() {
 
     try {
       const symbolDataUrl = await resizeSymbolFile(file);
-      updateShopProduct(product.id, { symbolDataUrl });
+      await updateShopProductSymbol(product.id, symbolDataUrl);
       setMessage(`Symbol updated for ${product.name}.`);
     } catch (err) {
       setError(err.message || "Could not upload that symbol.");
     } finally {
+      event.target.value = "";
       setSymbolUploadingId("");
     }
   }
 
-  function handleRemoveSymbol(product) {
+  async function handleRemoveSymbol(product) {
     clearFeedback();
+    setSymbolUploadingId(product.id);
 
     try {
-      updateShopProduct(product.id, { symbolDataUrl: "" });
+      await updateShopProductSymbol(product.id, "");
       setMessage(`Custom symbol removed from ${product.name}.`);
     } catch (err) {
       setError(err.message || "Could not remove the symbol.");
+    } finally {
+      setSymbolUploadingId("");
     }
   }
 

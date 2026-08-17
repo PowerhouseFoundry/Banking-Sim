@@ -6,15 +6,19 @@ import {
   mockStudents,
   mockTransactions
 } from "../data/mockData.js";
-import { doc, getDoc, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, runTransaction, setDoc, where } from "firebase/firestore";
 import { db, ensureFirebaseReady } from "./firebase.js";
 
 const LOCAL_CACHE_KEY = "powerhouseBankingStateCache";
+const SHOP_SYMBOL_CACHE_KEY = "powerhouseShopSymbolCache";
 const CHANGE_EVENT = "powerhouse-banking-updated";
 
 const STATE_DOC = doc(db, "bankState", "current");
+const BANK_STATE_COLLECTION = collection(db, "bankState");
+const SHOP_SYMBOLS_QUERY = query(BANK_STATE_COLLECTION, where("kind", "==", "shopSymbol"));
 
 let memoryState = null;
+let shopSymbolMap = {};
 let startedSync = false;
 let initialLoadPromise = null;
 let saveQueue = Promise.resolve();
@@ -283,6 +287,48 @@ function saveLocalCache(state) {
   storage.setItem(LOCAL_CACHE_KEY, JSON.stringify(ensureStateShape(state)));
 }
 
+function readShopSymbolCache() {
+  const storage = getBrowserStorage();
+  if (!storage) return {};
+
+  try {
+    const raw = storage.getItem(SHOP_SYMBOL_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveShopSymbolCache(symbols) {
+  const storage = getBrowserStorage();
+  if (!storage) return;
+
+  try {
+    storage.setItem(SHOP_SYMBOL_CACHE_KEY, JSON.stringify(symbols || {}));
+  } catch (error) {
+    console.warn("Could not cache shop symbols locally:", error);
+  }
+}
+
+function setShopSymbolMap(nextMap) {
+  shopSymbolMap = { ...(nextMap || {}) };
+  saveShopSymbolCache(shopSymbolMap);
+  emitChange();
+}
+
+function shopSymbolDoc(productId) {
+  return doc(db, "bankState", `shopSymbol__${productId}`);
+}
+
+function attachSymbolToProduct(product) {
+  return {
+    ...product,
+    symbolDataUrl: shopSymbolMap[product.id] || ""
+  };
+}
+
 function getDefaultState() {
   return ensureStateShape(seedState);
 }
@@ -294,13 +340,45 @@ function setMemoryState(nextState) {
   return memoryState;
 }
 
+async function migrateEmbeddedShopSymbols(rawState) {
+  const products = Array.isArray(rawState?.shopProducts) ? rawState.shopProducts : [];
+  const embedded = products.filter(
+    (product) => typeof product?.symbolDataUrl === "string" && product.symbolDataUrl.startsWith("data:image/")
+  );
+
+  if (embedded.length === 0) return;
+
+  try {
+    for (const product of embedded) {
+      if (!product.id || product.symbolDataUrl.length > 900000) continue;
+      await setDoc(shopSymbolDoc(product.id), {
+        kind: "shopSymbol",
+        productId: product.id,
+        dataUrl: product.symbolDataUrl,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    const cleanedProducts = products.map((product) => {
+      const { symbolDataUrl, ...cleanProduct } = product;
+      return cleanProduct;
+    });
+
+    await setDoc(STATE_DOC, { shopProducts: cleanedProducts }, { merge: true });
+  } catch (error) {
+    console.warn("Could not migrate older embedded shop symbols:", error);
+  }
+}
+
 async function loadInitialStateFromFirestore() {
   await ensureFirebaseReady();
 
   const snapshot = await getDoc(STATE_DOC);
 
   if (snapshot.exists()) {
-    return setMemoryState(snapshot.data());
+    const rawState = snapshot.data();
+    await migrateEmbeddedShopSymbols(rawState);
+    return setMemoryState(rawState);
   }
 
   const startingState = readLocalCache() || getDefaultState();
@@ -313,14 +391,36 @@ function startFirestoreSync() {
   startedSync = true;
 
   memoryState = readLocalCache() || getDefaultState();
+  shopSymbolMap = readShopSymbolCache();
 
   initialLoadPromise = loadInitialStateFromFirestore()
     .then(() => ensureFirebaseReady())
     .then(() => {
-      onSnapshot(STATE_DOC, (snapshot) => {
-        if (!snapshot.exists()) return;
-        setMemoryState(snapshot.data());
-      });
+      onSnapshot(
+        STATE_DOC,
+        (snapshot) => {
+          if (!snapshot.exists()) return;
+          setMemoryState(snapshot.data());
+        },
+        (error) => {
+          console.error("Bank data listener error:", error);
+        }
+      );
+
+      getDocs(SHOP_SYMBOLS_QUERY)
+        .then((snapshot) => {
+          const nextSymbols = {};
+          snapshot.forEach((symbolSnapshot) => {
+            const data = symbolSnapshot.data();
+            if (data?.productId && typeof data.dataUrl === "string" && data.dataUrl.startsWith("data:image/")) {
+              nextSymbols[data.productId] = data.dataUrl;
+            }
+          });
+          setShopSymbolMap(nextSymbols);
+        })
+        .catch((error) => {
+          console.error("Could not load shop symbols:", error);
+        });
     })
     .catch((error) => {
       console.error("Failed to start Firestore sync:", error);
@@ -1452,13 +1552,14 @@ export function getShopProducts({ includeInactive = false } = {}) {
         if (categoryCompare !== 0) return categoryCompare;
         return (a.name || "").localeCompare(b.name || "");
       })
+      .map(attachSymbolToProduct)
   );
 }
 
 export function getShopProductById(productId) {
   const state = readState();
   const product = (state.shopProducts || []).find((item) => item.id === productId);
-  return product ? clone(product) : null;
+  return product ? clone(attachSymbolToProduct(product)) : null;
 }
 
 export function addShopProduct({ name, category, price }) {
@@ -1519,7 +1620,52 @@ export function updateShopProduct(productId, updates) {
   }
 
   writeState(state);
-  return clone(product);
+  return clone(attachSymbolToProduct(product));
+}
+
+export async function updateShopProductSymbol(productId, symbolDataUrl) {
+  const state = readState();
+  const product = (state.shopProducts || []).find((item) => item.id === productId);
+
+  if (!product) {
+    throw new Error("Product not found.");
+  }
+
+  const cleanDataUrl = typeof symbolDataUrl === "string" ? symbolDataUrl.trim() : "";
+
+  if (cleanDataUrl && !cleanDataUrl.startsWith("data:image/")) {
+    throw new Error("The uploaded symbol is not a valid image.");
+  }
+
+  if (cleanDataUrl.length > 900000) {
+    throw new Error("That symbol image is too large. Choose a smaller image.");
+  }
+
+  await ensureFirebaseReady();
+
+  const symbolRef = shopSymbolDoc(productId);
+
+  if (!cleanDataUrl) {
+    await deleteDoc(symbolRef);
+    const nextSymbols = { ...shopSymbolMap };
+    delete nextSymbols[productId];
+    setShopSymbolMap(nextSymbols);
+    return { ...clone(product), symbolDataUrl: "" };
+  }
+
+  await setDoc(symbolRef, {
+    kind: "shopSymbol",
+    productId,
+    dataUrl: cleanDataUrl,
+    updatedAt: new Date().toISOString()
+  });
+
+  setShopSymbolMap({
+    ...shopSymbolMap,
+    [productId]: cleanDataUrl
+  });
+
+  return { ...clone(product), symbolDataUrl: cleanDataUrl };
 }
 
 export function toggleShopProduct(productId) {
