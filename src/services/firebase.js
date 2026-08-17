@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,9 +11,17 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 
-// 👇 THIS FIXES YOUR ERROR
+// The college/network connection is interrupting Firestore's normal
+// WebChannel transport. Force long polling and use a shorter timeout
+// so each request completes before the network's roughly 15 second cutoff.
+const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  experimentalLongPollingOptions: {
+    timeoutSeconds: 10
+  }
+});
+
 export async function ensureFirebaseReady() {
   return db;
 }
