@@ -1361,50 +1361,6 @@ export function applyMonthlyUpdate(runDate = todayDate()) {
   }
 
   if (payment.frequency === "weekly") {
-    while (payment.nextDueDate && payment.nextDueDate <= runDate) {
-      const validStudentIds = [...new Set(payment.studentIds || [])].filter(Boolean);
-
-      validStudentIds.forEach((studentId) => {
-        const account = state.accounts.find((item) => item.studentId === studentId);
-        if (!account) return;
-
-        state.transactions.unshift({
-          id: createId("txn"),
-          accountId: account.id,
-          studentId,
-          date: payment.nextDueDate,
-          description: payment.statementName || "WEEKLY PAYMENT",
-          category: payment.amount < 0 ? "Deduction" : "Pay",
-          amount: Number(payment.amount) || 0,
-          suspicious: false
-        });
-
-        account.balance = Number((account.balance + Number(payment.amount || 0)).toFixed(2));
-
-        if (Number(payment.amount) >= 0) {
-          addNotification(
-            state,
-            studentId,
-            "success",
-            "Weekly payment added",
-            `${payment.statementName} has been added to your account.`
-          );
-        } else {
-          addNotification(
-            state,
-            studentId,
-            "info",
-            "Weekly payment taken",
-            `${payment.statementName} has been taken from your account.`
-          );
-        }
-      });
-
-      const next = new Date(`${payment.nextDueDate}T00:00:00`);
-      next.setDate(next.getDate() + 7);
-      payment.nextDueDate = next.toISOString().slice(0, 10);
-    }
-
     return;
   }
 
@@ -1515,6 +1471,72 @@ export function applyMonthlyUpdate(runDate = todayDate()) {
   });
 
   writeState(state);
+}
+
+export function runDueWeeklyPayments(runDate = todayDate()) {
+  const state = readState();
+  let transactionCount = 0;
+  let scheduleCount = 0;
+
+  (state.recurringPayments || []).forEach((payment) => {
+    if (payment.active === false || payment.frequency !== "weekly") return;
+
+    let scheduleProcessed = false;
+
+    while (payment.nextDueDate && payment.nextDueDate <= runDate) {
+      const dueDate = payment.nextDueDate;
+      const validStudentIds = [...new Set(payment.studentIds || [])].filter(Boolean);
+
+      validStudentIds.forEach((studentId) => {
+        const account = state.accounts.find((item) => item.studentId === studentId);
+        if (!account) return;
+
+        const alreadyPaid = state.transactions.some(
+          (transaction) =>
+            transaction.recurringPaymentId === payment.id &&
+            transaction.studentId === studentId &&
+            transaction.date === dueDate
+        );
+
+        if (alreadyPaid) return;
+
+        state.transactions.unshift({
+          id: createId("txn"),
+          accountId: account.id,
+          studentId,
+          date: dueDate,
+          description: payment.statementName || "WEEKLY PAYMENT",
+          category: Number(payment.amount) < 0 ? "Deduction" : "Pay",
+          amount: Number(payment.amount) || 0,
+          suspicious: false,
+          recurringPaymentId: payment.id
+        });
+
+        account.balance = Number((account.balance + Number(payment.amount || 0)).toFixed(2));
+        transactionCount += 1;
+
+        addNotification(
+          state,
+          studentId,
+          Number(payment.amount) >= 0 ? "success" : "info",
+          Number(payment.amount) >= 0 ? "Weekly payment added" : "Weekly payment taken",
+          `${payment.statementName} has been ${Number(payment.amount) >= 0 ? "added to" : "taken from"} your account.`
+        );
+      });
+
+      payment.lastPaidDate = dueDate;
+      const next = new Date(`${dueDate}T00:00:00`);
+      next.setDate(next.getDate() + 7);
+      payment.nextDueDate = next.toISOString().slice(0, 10);
+      scheduleProcessed = true;
+    }
+
+    if (scheduleProcessed) scheduleCount += 1;
+  });
+
+  if (scheduleCount > 0) writeState(state);
+
+  return { scheduleCount, transactionCount };
 }
 export function setCardStatus(studentId, status) {
   const state = readState();

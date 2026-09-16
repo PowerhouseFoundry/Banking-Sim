@@ -9,6 +9,8 @@ import {
   getAllStudents,
   getClassGroups,
   getRecurringPayments,
+  runDueWeeklyPayments,
+  toggleRecurringPaymentActive,
   waitForPendingBankSave
 } from "../../services/bankService.js";
 import useBankRefresh from "../../hooks/useBankRefresh.js";
@@ -88,6 +90,12 @@ export default function TeacherTransactionsPage() {
     statementName: "",
     amount: "",
     date: new Date().toISOString().slice(0, 10)
+  });
+  const [weeklyForm, setWeeklyForm] = useState({
+    statementName: "",
+    amount: "",
+    type: "add",
+    startDate: new Date().toISOString().slice(0, 10)
   });
 const [activeStudentClass, setActiveStudentClass] = useState(classGroups[0] || "");
   useEffect(() => {
@@ -239,6 +247,75 @@ async function handleRunDueBillsNow() {
     setFormError(error.message || "Could not run due bills.");
   }
 }
+
+  async function handleCreateWeeklyPayment(event) {
+    event.preventDefault();
+    setFormError("");
+
+    if (selectedStudentIds.length === 0) {
+      setFormError("Tick at least one learner first.");
+      return;
+    }
+
+    const numericAmount = Number(weeklyForm.amount);
+    if (!weeklyForm.statementName.trim()) {
+      setFormError("Enter a job or payment name.");
+      return;
+    }
+    if (!numericAmount || numericAmount <= 0) {
+      setFormError("Enter an amount greater than 0.");
+      return;
+    }
+
+    try {
+      createRecurringPayment({
+        studentIds: selectedStudentIds,
+        statementName: weeklyForm.statementName.trim(),
+        amount: numericAmount,
+        type: weeklyForm.type,
+        startDate: weeklyForm.startDate,
+        frequency: "weekly"
+      });
+      await waitForPendingBankSave();
+      window.alert(`Weekly payment saved for ${selectedStudentIds.length} learner${selectedStudentIds.length === 1 ? "" : "s"}.`);
+      setWeeklyForm({
+        statementName: "",
+        amount: "",
+        type: "add",
+        startDate: new Date().toISOString().slice(0, 10)
+      });
+    } catch (error) {
+      setFormError(error.message || "Could not save weekly payment.");
+    }
+  }
+
+  async function handleRunDueWeeklyPayments() {
+    setFormError("");
+    if (!window.confirm("Run every weekly payment due today or earlier? Money will be added to or taken from the selected learners' accounts.")) return;
+
+    try {
+      const result = runDueWeeklyPayments(new Date().toISOString().slice(0, 10));
+      await waitForPendingBankSave();
+      window.alert(
+        result.transactionCount === 0
+          ? "No weekly payments are due."
+          : `${result.transactionCount} learner payment${result.transactionCount === 1 ? "" : "s"} processed across ${result.scheduleCount} schedule${result.scheduleCount === 1 ? "" : "s"}.`
+      );
+    } catch (error) {
+      setFormError(error.message || "Could not run weekly payments.");
+    }
+  }
+
+  async function handleToggleWeeklyPayment(item) {
+    toggleRecurringPaymentActive(item.id);
+    await waitForPendingBankSave();
+  }
+
+  async function handleDeleteRecurringPayment(item) {
+    if (!window.confirm(`Delete ${item.statementName}? This stops future payments but does not remove past transactions.`)) return;
+    deleteRecurringPayment(item.id);
+    await waitForPendingBankSave();
+  }
   function applyPresetToSelectedStudents(preset, type) {
     setFormError("");
 
@@ -420,11 +497,11 @@ async function handleRunDueBillsNow() {
   return (
     <AppShell
       title="Transactions"
-      subtitle="Set up monthly bills and apply rewards or sanctions quickly."
+      subtitle="Manage monthly bills, weekly pay, rewards and sanctions."
     >
       <SectionCard
         title="Transactions manager"
-        description="Use the tabs below to manage bills, rewards, and sanctions."
+        description="Use the tabs below to manage regular and one-off transactions."
       >
         <div className="ph-payment-toggle">
           <button
@@ -436,6 +513,17 @@ async function handleRunDueBillsNow() {
             }}
           >
             Bills
+          </button>
+
+          <button
+            type="button"
+            className={tab === "weekly" ? "ph-payment-toggle-active" : ""}
+            onClick={() => {
+              setTab("weekly");
+              setFormError("");
+            }}
+          >
+            Weekly Pay
           </button>
 
           <button
@@ -605,57 +693,14 @@ async function handleRunDueBillsNow() {
             )}
           </SectionCard>
 
-          <SectionCard
-            title="Active weekly payments"
-            description="Use this to check weekly pay or deductions before adding them again."
-          >
-            {visibleWeeklyPayments.length === 0 ? (
-              <p className="ph-muted">No weekly payments have been added yet.</p>
-            ) : (
-              <div className="ph-recurring-list">
-                {visibleWeeklyPayments.map((item) => {
-                  const amount = Number(item.amount || 0);
-                  const studentCount = item.studentIds?.length || item.studentNames?.length || 0;
-
-                  return (
-                    <div key={item.id} className="ph-recurring-card">
-                      <div>
-                        <h4>{item.statementName}</h4>
-                        <p className="ph-muted">
-                          {studentCount} student{studentCount === 1 ? "" : "s"}
-                        </p>
-                        <p className="ph-muted">
-                          Weekly · Next due: {item.nextDueDate || "Not set"}
-                        </p>
-                      </div>
-
-                      <div className="ph-recurring-actions">
-                        <div className={amount < 0 ? "ph-amount-out" : "ph-amount-in"}>
-                          {amount < 0 ? "-" : "+"}£{Math.abs(amount).toFixed(2)}
-                        </div>
-
-                        <button
-                          className="ph-button ph-button-secondary ph-button-small"
-                          type="button"
-                          onClick={() => deleteRecurringPayment(item.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </SectionCard>
         </>
       ) : null}
 
-      {(tab === "rewards" || tab === "sanctions") ? (
+      {(tab === "weekly" || tab === "rewards" || tab === "sanctions") ? (
         <>
           <SectionCard
             title="Choose class and students"
-            description="Use the class tabs to show one class at a time, then tick students from that class."
+            description="Use the class tabs to show one class at a time, then tick the learners you need."
           >
             <div
               className="ph-class-toggle-bar"
@@ -732,7 +777,110 @@ async function handleRunDueBillsNow() {
             </div>
           </SectionCard>
 
-          <SectionCard
+          {tab === "weekly" ? (
+            <>
+              <SectionCard
+                title="Set weekly pay"
+                description="Create a regular weekly wage or deduction for the ticked learners."
+              >
+                <form className="ph-form" onSubmit={handleCreateWeeklyPayment}>
+                  <label className="ph-field">
+                    <span>Job or payment name</span>
+                    <input
+                      value={weeklyForm.statementName}
+                      onChange={(event) => setWeeklyForm({ ...weeklyForm, statementName: event.target.value })}
+                      placeholder="LOFT COFFEE SHOP PAY"
+                    />
+                  </label>
+
+                  <label className="ph-field">
+                    <span>Amount</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={weeklyForm.amount}
+                      onChange={(event) => setWeeklyForm({ ...weeklyForm, amount: event.target.value })}
+                      placeholder="25.00"
+                    />
+                  </label>
+
+                  <label className="ph-field">
+                    <span>Type</span>
+                    <select
+                      className="ph-select"
+                      value={weeklyForm.type}
+                      onChange={(event) => setWeeklyForm({ ...weeklyForm, type: event.target.value })}
+                    >
+                      <option value="add">Add money (weekly pay)</option>
+                      <option value="take">Take money (weekly deduction)</option>
+                    </select>
+                  </label>
+
+                  <label className="ph-field">
+                    <span>First payment date</span>
+                    <input
+                      type="date"
+                      value={weeklyForm.startDate}
+                      onChange={(event) => setWeeklyForm({ ...weeklyForm, startDate: event.target.value })}
+                    />
+                  </label>
+
+                  <button className="ph-button ph-button-primary" type="submit">
+                    Save weekly payment
+                  </button>
+                </form>
+              </SectionCard>
+
+              <SectionCard
+                title="Weekly payment schedules"
+                description="See who is included, when they were last paid and when the next payment is due."
+              >
+                <div className="ph-class-toggle-bar" style={{ marginBottom: "16px", flexWrap: "wrap" }}>
+                  <button type="button" className={activeBillClass === "All" ? "ph-button ph-button-primary" : "ph-button ph-button-secondary"} onClick={() => setActiveBillClass("All")}>All</button>
+                  {classGroups.map((group) => (
+                    <button key={group} type="button" className={activeBillClass === group ? "ph-button ph-button-primary" : "ph-button ph-button-secondary"} onClick={() => setActiveBillClass(group)}>{group}</button>
+                  ))}
+                </div>
+
+                <div style={{ marginBottom: "16px" }}>
+                  <button className="ph-button ph-button-primary" type="button" onClick={handleRunDueWeeklyPayments}>
+                    Run due weekly payments
+                  </button>
+                </div>
+
+                {visibleWeeklyPayments.length === 0 ? (
+                  <p className="ph-muted">No weekly payments have been added yet.</p>
+                ) : (
+                  <div className="ph-recurring-list">
+                    {visibleWeeklyPayments.map((item) => {
+                      const amount = Number(item.amount || 0);
+                      const names = item.studentNames || [];
+                      const groups = [...new Set((item.studentIds || []).map((id) => students.find((student) => student.id === id)?.classGroup).filter(Boolean))];
+                      return (
+                        <div key={item.id} className="ph-recurring-card" style={{ opacity: item.active === false ? 0.65 : 1 }}>
+                          <div>
+                            <h4>{item.statementName}</h4>
+                            <p className="ph-muted"><strong>{groups.join(", ") || "Class not available"}</strong></p>
+                            <p className="ph-muted">{names.join(", ") || "No learners found"}</p>
+                            <p className="ph-muted">Last paid: {item.lastPaidDate || "Not paid yet"} · Next due: {item.nextDueDate || "Not set"}</p>
+                            <p className="ph-muted">Status: {item.active === false ? "Paused" : "Active"}</p>
+                          </div>
+                          <div className="ph-recurring-actions">
+                            <div className={amount < 0 ? "ph-amount-out" : "ph-amount-in"}>{amount < 0 ? "-" : "+"}£{Math.abs(amount).toFixed(2)}</div>
+                            <button className="ph-button ph-button-secondary ph-button-small" type="button" onClick={() => handleToggleWeeklyPayment(item)}>{item.active === false ? "Resume" : "Pause"}</button>
+                            <button className="ph-button ph-button-secondary ph-button-small" type="button" onClick={() => handleDeleteRecurringPayment(item)}>Delete</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </SectionCard>
+            </>
+          ) : null}
+
+          {tab !== "weekly" ? <SectionCard
             title="Saved buttons"
             description={
               tab === "rewards"
@@ -853,9 +1001,9 @@ async function handleRunDueBillsNow() {
                 </button>
               </form>
             )}
-          </SectionCard>
+          </SectionCard> : null}
 
-          <SectionCard
+          {tab !== "weekly" ? <SectionCard
             title={tab === "rewards" ? "Manual reward" : "Manual sanction"}
             description={
               tab === "rewards"
@@ -946,7 +1094,7 @@ async function handleRunDueBillsNow() {
                 </button>
               </form>
             )}
-          </SectionCard>
+          </SectionCard> : null}
         </>
       ) : null}
     </AppShell>
