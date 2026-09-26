@@ -8,7 +8,8 @@ import {
   getClassGroups,
   getAllTransactions,
   getPendingShopOrders,
-  createRecurringPayment
+  createRecurringPayment,
+  waitForPendingBankSave
 } from "../../services/bankService.js";
 import useBankRefresh from "../../hooks/useBankRefresh.js";
 
@@ -27,6 +28,7 @@ export default function TeacherDashboardPage() {
   const [searchText, setSearchText] = useState("");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [formError, setFormError] = useState("");
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
 
   const [paymentForm, setPaymentForm] = useState({
     statementName: "",
@@ -99,9 +101,11 @@ export default function TeacherDashboardPage() {
     setFormError("");
   }
 
- function handlePaymentSubmit(event) {
+ async function handlePaymentSubmit(event) {
   event.preventDefault();
   setFormError("");
+
+  if (isSavingPayment) return;
 
   if (!paymentForm.statementName.trim()) {
     setFormError("Enter a statement name.");
@@ -120,23 +124,31 @@ export default function TeacherDashboardPage() {
       : Math.abs(numericAmount);
 
   if (paymentForm.repeat === "one-off") {
-    addTransactionToStudents(selectedStudentIds, {
-      description: paymentForm.statementName,
-      category: paymentForm.type === "take" ? "Deduction" : "Pay",
-      amount: finalAmount,
-      date: paymentForm.date,
-      suspicious: false
-    });
+    setIsSavingPayment(true);
+    try {
+      const count = addTransactionToStudents(selectedStudentIds, {
+        description: paymentForm.statementName,
+        category: paymentForm.type === "take" ? "Deduction" : "Pay",
+        amount: finalAmount,
+        date: paymentForm.date,
+        suspicious: false
+      });
+      await waitForPendingBankSave();
 
-    window.alert(
-      `${paymentForm.type === "take" ? "Deduction" : "Payment"} added for ${selectedStudentIds.length} student${selectedStudentIds.length === 1 ? "" : "s"}.`
-    );
-
-    closePaymentModal();
+      window.alert(
+        `${paymentForm.type === "take" ? "Deduction" : "Payment"} added for ${count} learner${count === 1 ? "" : "s"}.`
+      );
+      closePaymentModal();
+    } catch (error) {
+      setFormError(error.message || "The payment could not be saved. Please try again.");
+    } finally {
+      setIsSavingPayment(false);
+    }
     return;
   }
 
   if (paymentForm.repeat === "weekly") {
+    setIsSavingPayment(true);
     try {
       createRecurringPayment({
         studentIds: selectedStudentIds,
@@ -146,6 +158,7 @@ export default function TeacherDashboardPage() {
         startDate: paymentForm.date,
         frequency: "weekly"
       });
+      await waitForPendingBankSave();
 
       window.alert(
         `Weekly ${paymentForm.type === "take" ? "deduction" : "payment"} set up for ${selectedStudentIds.length} student${selectedStudentIds.length === 1 ? "" : "s"}.`
@@ -154,6 +167,8 @@ export default function TeacherDashboardPage() {
       closePaymentModal();
     } catch (error) {
       setFormError(error.message || "Could not set up weekly payment.");
+    } finally {
+      setIsSavingPayment(false);
     }
 
     return;
@@ -461,13 +476,14 @@ export default function TeacherDashboardPage() {
               </label>
 
               <div className="ph-inline-actions">
-                <button className="ph-button ph-button-primary" type="submit">
-                  Save
+                <button className="ph-button ph-button-primary" type="submit" disabled={isSavingPayment}>
+                  {isSavingPayment ? "Saving…" : "Save"}
                 </button>
                 <button
                   className="ph-button ph-button-secondary"
                   type="button"
                   onClick={closePaymentModal}
+                  disabled={isSavingPayment}
                 >
                   Cancel
                 </button>

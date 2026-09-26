@@ -47,6 +47,7 @@ export default function TeacherTransactionsPage() {
   const [tab, setTab] = useState("bills");
   const [formError, setFormError] = useState("");
   const [activeBillClass, setActiveBillClass] = useState("All");
+  const [isSavingBulkPayment, setIsSavingBulkPayment] = useState(false);
 
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
@@ -316,8 +317,10 @@ async function handleRunDueBillsNow() {
     deleteRecurringPayment(item.id);
     await waitForPendingBankSave();
   }
-  function applyPresetToSelectedStudents(preset, type) {
+  async function applyPresetToSelectedStudents(preset, type) {
     setFormError("");
+
+    if (isSavingBulkPayment) return;
 
     if (selectedStudentIds.length === 0) {
       setFormError("Tick at least one student first.");
@@ -331,19 +334,22 @@ async function handleRunDueBillsNow() {
       return;
     }
 
-    addTransactionToStudents(selectedStudentIds, {
-      description: preset.name.trim(),
-      category: type === "reward" ? "Reward" : "Sanction",
-      amount: type === "reward" ? Math.abs(numericAmount) : -Math.abs(numericAmount),
-      date: new Date().toISOString().slice(0, 10),
-      suspicious: false
-    });
-
-    window.alert(
-      `${preset.name} applied to ${selectedStudentIds.length} student${
-        selectedStudentIds.length === 1 ? "" : "s"
-      }.`
-    );
+    setIsSavingBulkPayment(true);
+    try {
+      const count = addTransactionToStudents(selectedStudentIds, {
+        description: preset.name.trim(),
+        category: type === "reward" ? "Reward" : "Sanction",
+        amount: type === "reward" ? Math.abs(numericAmount) : -Math.abs(numericAmount),
+        date: new Date().toISOString().slice(0, 10),
+        suspicious: false
+      });
+      await waitForPendingBankSave();
+      window.alert(`${preset.name} applied to ${count} learner${count === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setFormError(error.message || "The bulk payment could not be saved. Please try again.");
+    } finally {
+      setIsSavingBulkPayment(false);
+    }
   }
 
   function addRewardPreset(event) {
@@ -410,9 +416,11 @@ async function handleRunDueBillsNow() {
     setSanctionPresets((current) => current.filter((item) => item.id !== id));
   }
 
-  function handleManualReward(event) {
+  async function handleManualReward(event) {
     event.preventDefault();
     setFormError("");
+
+    if (isSavingBulkPayment) return;
 
     const numericAmount = Number(manualReward.amount);
 
@@ -431,30 +439,30 @@ async function handleRunDueBillsNow() {
       return;
     }
 
-    addTransactionToStudents(selectedStudentIds, {
-      description: manualReward.statementName.trim(),
-      category: "Reward",
-      amount: Math.abs(numericAmount),
-      date: manualReward.date,
-      suspicious: false
-    });
-
-    window.alert(
-      `Reward added to ${selectedStudentIds.length} student${
-        selectedStudentIds.length === 1 ? "" : "s"
-      }.`
-    );
-
-    setManualReward({
-      statementName: "",
-      amount: "",
-      date: new Date().toISOString().slice(0, 10)
-    });
+    setIsSavingBulkPayment(true);
+    try {
+      const count = addTransactionToStudents(selectedStudentIds, {
+        description: manualReward.statementName.trim(),
+        category: "Reward",
+        amount: Math.abs(numericAmount),
+        date: manualReward.date,
+        suspicious: false
+      });
+      await waitForPendingBankSave();
+      window.alert(`Reward added to ${count} learner${count === 1 ? "" : "s"}.`);
+      setManualReward({ statementName: "", amount: "", date: new Date().toISOString().slice(0, 10) });
+    } catch (error) {
+      setFormError(error.message || "The bulk reward could not be saved. Please try again.");
+    } finally {
+      setIsSavingBulkPayment(false);
+    }
   }
 
-  function handleManualSanction(event) {
+  async function handleManualSanction(event) {
     event.preventDefault();
     setFormError("");
+
+    if (isSavingBulkPayment) return;
 
     const numericAmount = Number(manualSanction.amount);
 
@@ -473,25 +481,23 @@ async function handleRunDueBillsNow() {
       return;
     }
 
-    addTransactionToStudents(selectedStudentIds, {
-      description: manualSanction.statementName.trim(),
-      category: "Sanction",
-      amount: -Math.abs(numericAmount),
-      date: manualSanction.date,
-      suspicious: false
-    });
-
-    window.alert(
-      `Sanction added to ${selectedStudentIds.length} student${
-        selectedStudentIds.length === 1 ? "" : "s"
-      }.`
-    );
-
-    setManualSanction({
-      statementName: "",
-      amount: "",
-      date: new Date().toISOString().slice(0, 10)
-    });
+    setIsSavingBulkPayment(true);
+    try {
+      const count = addTransactionToStudents(selectedStudentIds, {
+        description: manualSanction.statementName.trim(),
+        category: "Sanction",
+        amount: -Math.abs(numericAmount),
+        date: manualSanction.date,
+        suspicious: false
+      });
+      await waitForPendingBankSave();
+      window.alert(`Sanction added to ${count} learner${count === 1 ? "" : "s"}.`);
+      setManualSanction({ statementName: "", amount: "", date: new Date().toISOString().slice(0, 10) });
+    } catch (error) {
+      setFormError(error.message || "The bulk sanction could not be saved. Please try again.");
+    } finally {
+      setIsSavingBulkPayment(false);
+    }
   }
 
   return (
@@ -920,8 +926,9 @@ async function handleRunDueBillsNow() {
                       type="button"
                       className="ph-button ph-button-primary ph-button-small"
                       onClick={() => applyPresetToSelectedStudents(preset, tab === "rewards" ? "reward" : "sanction")}
+                      disabled={isSavingBulkPayment}
                     >
-                      Apply
+                      {isSavingBulkPayment ? "Saving…" : "Apply"}
                     </button>
 
                     <button
@@ -1048,8 +1055,8 @@ async function handleRunDueBillsNow() {
                   />
                 </label>
 
-                <button className="ph-button ph-button-primary" type="submit">
-                  Apply reward to ticked students
+                <button className="ph-button ph-button-primary" type="submit" disabled={isSavingBulkPayment}>
+                  {isSavingBulkPayment ? "Saving…" : "Apply reward to ticked learners"}
                 </button>
               </form>
             ) : (
@@ -1089,8 +1096,8 @@ async function handleRunDueBillsNow() {
                   />
                 </label>
 
-                <button className="ph-button ph-button-primary" type="submit">
-                  Apply sanction to ticked students
+                <button className="ph-button ph-button-primary" type="submit" disabled={isSavingBulkPayment}>
+                  {isSavingBulkPayment ? "Saving…" : "Apply sanction to ticked learners"}
                 </button>
               </form>
             )}
