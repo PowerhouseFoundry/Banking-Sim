@@ -1481,7 +1481,7 @@ export function applyMonthlyUpdate(runDate = todayDate()) {
 function processDueRecurringPaymentsInState(
   state,
   runDate,
-  { frequency, automaticOnly = false } = {}
+  { frequency, automaticOnly = false, manualOnly = false } = {}
 ) {
   let transactionCount = 0;
   let scheduleCount = 0;
@@ -1489,6 +1489,7 @@ function processDueRecurringPaymentsInState(
   (state.recurringPayments || []).forEach((payment) => {
     if (payment.active === false || payment.frequency !== frequency) return;
     if (automaticOnly && payment.automatic !== true) return;
+    if (manualOnly && payment.automatic === true) return;
 
     let scheduleProcessed = false;
     const validStudentIds = [...new Set(payment.studentIds || [])].filter(Boolean);
@@ -1574,7 +1575,8 @@ function processDueRecurringPaymentsInState(
 export function runDueMonthlyBills(runDate = todayDate()) {
   const state = readState();
   const result = processDueRecurringPaymentsInState(state, runDate, {
-    frequency: "monthly"
+    frequency: "monthly",
+    manualOnly: true
   });
 
   if (result.scheduleCount > 0) writeState(state);

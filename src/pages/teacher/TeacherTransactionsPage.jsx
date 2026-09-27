@@ -237,7 +237,7 @@ async function handleRunDueBillsNow() {
   setFormError("");
 
   const confirmed = window.confirm(
-    "Run all bills due today or earlier? This will deduct money from student accounts and add transactions. Continue?"
+    "Run manual bills due today or earlier? Bills set to automatic will not be affected. Continue?"
   );
 
   if (!confirmed) return;
@@ -247,8 +247,8 @@ async function handleRunDueBillsNow() {
     await waitForPendingBankSave();
     window.alert(
       result.transactionCount === 0
-        ? "No monthly bills are due."
-        : `${result.transactionCount} learner bill${result.transactionCount === 1 ? "" : "s"} processed.`
+        ? "No manual monthly bills are due. Automatic bills were not affected."
+        : `${result.transactionCount} manual learner bill${result.transactionCount === 1 ? "" : "s"} processed. Automatic bills were not affected.`
     );
   } catch (error) {
     setFormError(error.message || "Could not run due bills.");
@@ -678,7 +678,7 @@ async function handleRunDueBillsNow() {
     type="button"
     onClick={handleRunDueBillsNow}
   >
-    Run due bills now
+    Run manual bills now
   </button>
 </div>
             {visibleMonthlyBills.length === 0 ? (
