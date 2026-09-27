@@ -685,10 +685,22 @@ async function handleRunDueBillsNow() {
               <p className="ph-muted">No monthly bills have been added yet.</p>
             ) : (
               <div className="ph-recurring-list">
-                {visibleMonthlyBills.map((item) => (
+                {visibleMonthlyBills.map((item) => {
+                  const assignedClasses = [...new Set(
+                    (item.studentIds || [])
+                      .map((studentId) =>
+                        students.find((student) => student.id === studentId)?.classGroup
+                      )
+                      .filter(Boolean)
+                  )];
+
+                  return (
                   <div key={item.id} className="ph-recurring-card">
                     <div>
                       <h4>{item.statementName}</h4>
+                      <p className="ph-muted">
+                        Class: <strong>{assignedClasses.join(", ") || "Class not available"}</strong>
+                      </p>
                       <p className="ph-muted">
                         {item.studentIds?.length || item.studentNames?.length || 0} student
                         {((item.studentIds?.length || item.studentNames?.length || 0) === 1) ? "" : "s"}
@@ -723,7 +735,8 @@ async function handleRunDueBillsNow() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </SectionCard>
