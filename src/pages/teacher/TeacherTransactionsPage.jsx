@@ -3,13 +3,14 @@ import AppShell from "../../components/layout/AppShell.jsx";
 import SectionCard from "../../components/common/SectionCard.jsx";
 import {
   addTransactionToStudents,
-  applyMonthlyUpdate,
   createRecurringPayment,
   deleteRecurringPayment,
   getAllStudents,
   getClassGroups,
   getRecurringPayments,
+  runDueMonthlyBills,
   runDueWeeklyPayments,
+  toggleRecurringPaymentAutomatic,
   toggleRecurringPaymentActive,
   waitForPendingBankSave
 } from "../../services/bankService.js";
@@ -47,14 +48,14 @@ export default function TeacherTransactionsPage() {
   const [tab, setTab] = useState("bills");
   const [formError, setFormError] = useState("");
   const [activeBillClass, setActiveBillClass] = useState("All");
-  const [isSavingBulkPayment, setIsSavingBulkPayment] = useState(false);
 
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
   const [billForm, setBillForm] = useState({
     classGroup: classGroups[0] || "",
     statementName: "",
-    amount: ""
+    amount: "",
+    monthlyDay: "1"
   });
 
   const [rewardPresets, setRewardPresets] = useState(() =>
@@ -214,18 +215,19 @@ const [activeStudentClass, setActiveStudentClass] = useState(classGroups[0] || "
         amount: numericAmount,
         type: "take",
         startDate: new Date().toISOString().slice(0, 10),
-        monthlyDay: "1",
+        monthlyDay: billForm.monthlyDay,
         frequency: "monthly"
       });
 
       window.alert(
-        `Monthly bill saved for ${billForm.classGroup}. It will come out on the 1st each month.`
+        `Monthly bill saved for ${billForm.classGroup}. It is due on day ${billForm.monthlyDay} each month. Use Set to automatic when you are ready for it to run automatically.`
       );
 
       setBillForm({
         classGroup: billForm.classGroup,
         statementName: "",
-        amount: ""
+        amount: "",
+        monthlyDay: billForm.monthlyDay
       });
     } catch (error) {
       setFormError(error.message || "Could not save monthly bill.");
@@ -241,9 +243,13 @@ async function handleRunDueBillsNow() {
   if (!confirmed) return;
 
   try {
-    applyMonthlyUpdate(new Date().toISOString().slice(0, 10));
+    const result = runDueMonthlyBills(new Date().toISOString().slice(0, 10));
     await waitForPendingBankSave();
-    window.alert("Due bills have been processed.");
+    window.alert(
+      result.transactionCount === 0
+        ? "No monthly bills are due."
+        : `${result.transactionCount} learner bill${result.transactionCount === 1 ? "" : "s"} processed.`
+    );
   } catch (error) {
     setFormError(error.message || "Could not run due bills.");
   }
@@ -312,15 +318,22 @@ async function handleRunDueBillsNow() {
     await waitForPendingBankSave();
   }
 
+  async function handleToggleAutomatic(item) {
+    try {
+      toggleRecurringPaymentAutomatic(item.id);
+      await waitForPendingBankSave();
+    } catch (error) {
+      setFormError(error.message || "Could not change automatic payment setting.");
+    }
+  }
+
   async function handleDeleteRecurringPayment(item) {
     if (!window.confirm(`Delete ${item.statementName}? This stops future payments but does not remove past transactions.`)) return;
     deleteRecurringPayment(item.id);
     await waitForPendingBankSave();
   }
-  async function applyPresetToSelectedStudents(preset, type) {
+  function applyPresetToSelectedStudents(preset, type) {
     setFormError("");
-
-    if (isSavingBulkPayment) return;
 
     if (selectedStudentIds.length === 0) {
       setFormError("Tick at least one student first.");
@@ -334,22 +347,19 @@ async function handleRunDueBillsNow() {
       return;
     }
 
-    setIsSavingBulkPayment(true);
-    try {
-      const count = addTransactionToStudents(selectedStudentIds, {
-        description: preset.name.trim(),
-        category: type === "reward" ? "Reward" : "Sanction",
-        amount: type === "reward" ? Math.abs(numericAmount) : -Math.abs(numericAmount),
-        date: new Date().toISOString().slice(0, 10),
-        suspicious: false
-      });
-      await waitForPendingBankSave();
-      window.alert(`${preset.name} applied to ${count} learner${count === 1 ? "" : "s"}.`);
-    } catch (error) {
-      setFormError(error.message || "The bulk payment could not be saved. Please try again.");
-    } finally {
-      setIsSavingBulkPayment(false);
-    }
+    addTransactionToStudents(selectedStudentIds, {
+      description: preset.name.trim(),
+      category: type === "reward" ? "Reward" : "Sanction",
+      amount: type === "reward" ? Math.abs(numericAmount) : -Math.abs(numericAmount),
+      date: new Date().toISOString().slice(0, 10),
+      suspicious: false
+    });
+
+    window.alert(
+      `${preset.name} applied to ${selectedStudentIds.length} student${
+        selectedStudentIds.length === 1 ? "" : "s"
+      }.`
+    );
   }
 
   function addRewardPreset(event) {
@@ -416,11 +426,9 @@ async function handleRunDueBillsNow() {
     setSanctionPresets((current) => current.filter((item) => item.id !== id));
   }
 
-  async function handleManualReward(event) {
+  function handleManualReward(event) {
     event.preventDefault();
     setFormError("");
-
-    if (isSavingBulkPayment) return;
 
     const numericAmount = Number(manualReward.amount);
 
@@ -439,30 +447,30 @@ async function handleRunDueBillsNow() {
       return;
     }
 
-    setIsSavingBulkPayment(true);
-    try {
-      const count = addTransactionToStudents(selectedStudentIds, {
-        description: manualReward.statementName.trim(),
-        category: "Reward",
-        amount: Math.abs(numericAmount),
-        date: manualReward.date,
-        suspicious: false
-      });
-      await waitForPendingBankSave();
-      window.alert(`Reward added to ${count} learner${count === 1 ? "" : "s"}.`);
-      setManualReward({ statementName: "", amount: "", date: new Date().toISOString().slice(0, 10) });
-    } catch (error) {
-      setFormError(error.message || "The bulk reward could not be saved. Please try again.");
-    } finally {
-      setIsSavingBulkPayment(false);
-    }
+    addTransactionToStudents(selectedStudentIds, {
+      description: manualReward.statementName.trim(),
+      category: "Reward",
+      amount: Math.abs(numericAmount),
+      date: manualReward.date,
+      suspicious: false
+    });
+
+    window.alert(
+      `Reward added to ${selectedStudentIds.length} student${
+        selectedStudentIds.length === 1 ? "" : "s"
+      }.`
+    );
+
+    setManualReward({
+      statementName: "",
+      amount: "",
+      date: new Date().toISOString().slice(0, 10)
+    });
   }
 
-  async function handleManualSanction(event) {
+  function handleManualSanction(event) {
     event.preventDefault();
     setFormError("");
-
-    if (isSavingBulkPayment) return;
 
     const numericAmount = Number(manualSanction.amount);
 
@@ -481,23 +489,25 @@ async function handleRunDueBillsNow() {
       return;
     }
 
-    setIsSavingBulkPayment(true);
-    try {
-      const count = addTransactionToStudents(selectedStudentIds, {
-        description: manualSanction.statementName.trim(),
-        category: "Sanction",
-        amount: -Math.abs(numericAmount),
-        date: manualSanction.date,
-        suspicious: false
-      });
-      await waitForPendingBankSave();
-      window.alert(`Sanction added to ${count} learner${count === 1 ? "" : "s"}.`);
-      setManualSanction({ statementName: "", amount: "", date: new Date().toISOString().slice(0, 10) });
-    } catch (error) {
-      setFormError(error.message || "The bulk sanction could not be saved. Please try again.");
-    } finally {
-      setIsSavingBulkPayment(false);
-    }
+    addTransactionToStudents(selectedStudentIds, {
+      description: manualSanction.statementName.trim(),
+      category: "Sanction",
+      amount: -Math.abs(numericAmount),
+      date: manualSanction.date,
+      suspicious: false
+    });
+
+    window.alert(
+      `Sanction added to ${selectedStudentIds.length} student${
+        selectedStudentIds.length === 1 ? "" : "s"
+      }.`
+    );
+
+    setManualSanction({
+      statementName: "",
+      amount: "",
+      date: new Date().toISOString().slice(0, 10)
+    });
   }
 
   return (
@@ -562,7 +572,7 @@ async function handleRunDueBillsNow() {
         <>
           <SectionCard
             title="Set monthly bill"
-            description="Bills apply to a whole class and are set to come out on the 1st of each month."
+            description="Bills apply to a whole class. Choose the monthly date, then switch automation on when you are ready."
           >
             <form className="ph-form" onSubmit={handleCreateBill}>
               <label className="ph-field">
@@ -606,17 +616,23 @@ async function handleRunDueBillsNow() {
                 />
               </label>
 
-              <div
-                style={{
-                  padding: "14px 16px",
-                  borderRadius: "16px",
-                  background: "var(--panel-soft)",
-                  border: "1px solid var(--border)",
-                  fontWeight: 600
-                }}
-              >
-                Payment day: <strong>1st of each month</strong>
-              </div>
+              <label className="ph-field">
+                <span>Day of each month</span>
+                <select
+                  className="ph-select"
+                  value={billForm.monthlyDay}
+                  onChange={(event) =>
+                    setBillForm({ ...billForm, monthlyDay: event.target.value })
+                  }
+                >
+                  {Array.from({ length: 28 }, (_, index) => index + 1).map((day) => (
+                    <option key={day} value={day}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+                <small>Choose 1–28 so the date exists in every month.</small>
+              </label>
 
               <button className="ph-button ph-button-primary" type="submit">
                 Save monthly bill
@@ -626,7 +642,7 @@ async function handleRunDueBillsNow() {
 
           <SectionCard
             title="Current monthly bills"
-            description="These are the recurring bills already set up."
+            description="Automatic bills run when the app opens and check again while it stays open. Manual bills wait for the Run button."
           >
             <div className="ph-class-toggle-bar" style={{ marginBottom: "16px", flexWrap: "wrap" }}>
   <button
@@ -677,13 +693,26 @@ async function handleRunDueBillsNow() {
                         {item.studentIds?.length || item.studentNames?.length || 0} student
                         {((item.studentIds?.length || item.studentNames?.length || 0) === 1) ? "" : "s"}
                       </p>
-                      <p className="ph-muted">Paid on day 1 each month</p>
+                      <p className="ph-muted">
+                        Due on day {item.monthlyDay} each month · Next due: {item.nextDueDate || "Not set"}
+                      </p>
+                      <p className="ph-muted">
+                        Automatic: <strong>{item.automatic ? "On" : "Off"}</strong>
+                      </p>
                     </div>
 
                     <div className="ph-recurring-actions">
                       <div className="ph-amount-out">
                         -£{Math.abs(Number(item.amount || 0)).toFixed(2)}
                       </div>
+
+                      <button
+                        className={item.automatic ? "ph-button ph-button-primary ph-button-small" : "ph-button ph-button-secondary ph-button-small"}
+                        type="button"
+                        onClick={() => handleToggleAutomatic(item)}
+                      >
+                        {item.automatic ? "Automatic on" : "Set to automatic"}
+                      </button>
 
                       <button
                         className="ph-button ph-button-secondary ph-button-small"
@@ -840,7 +869,7 @@ async function handleRunDueBillsNow() {
 
               <SectionCard
                 title="Weekly payment schedules"
-                description="See who is included, when they were last paid and when the next payment is due."
+                description="Automatic payments use the chosen weekday and catch up safely when the app next opens."
               >
                 <div className="ph-class-toggle-bar" style={{ marginBottom: "16px", flexWrap: "wrap" }}>
                   <button type="button" className={activeBillClass === "All" ? "ph-button ph-button-primary" : "ph-button ph-button-secondary"} onClick={() => setActiveBillClass("All")}>All</button>
@@ -870,10 +899,11 @@ async function handleRunDueBillsNow() {
                             <p className="ph-muted"><strong>{groups.join(", ") || "Class not available"}</strong></p>
                             <p className="ph-muted">{names.join(", ") || "No learners found"}</p>
                             <p className="ph-muted">Last paid: {item.lastPaidDate || "Not paid yet"} · Next due: {item.nextDueDate || "Not set"}</p>
-                            <p className="ph-muted">Status: {item.active === false ? "Paused" : "Active"}</p>
+                            <p className="ph-muted">Status: {item.active === false ? "Paused" : "Active"} · Automatic: <strong>{item.automatic ? "On" : "Off"}</strong></p>
                           </div>
                           <div className="ph-recurring-actions">
                             <div className={amount < 0 ? "ph-amount-out" : "ph-amount-in"}>{amount < 0 ? "-" : "+"}£{Math.abs(amount).toFixed(2)}</div>
+                            <button className={item.automatic ? "ph-button ph-button-primary ph-button-small" : "ph-button ph-button-secondary ph-button-small"} type="button" onClick={() => handleToggleAutomatic(item)}>{item.automatic ? "Automatic on" : "Set to automatic"}</button>
                             <button className="ph-button ph-button-secondary ph-button-small" type="button" onClick={() => handleToggleWeeklyPayment(item)}>{item.active === false ? "Resume" : "Pause"}</button>
                             <button className="ph-button ph-button-secondary ph-button-small" type="button" onClick={() => handleDeleteRecurringPayment(item)}>Delete</button>
                           </div>
@@ -926,9 +956,8 @@ async function handleRunDueBillsNow() {
                       type="button"
                       className="ph-button ph-button-primary ph-button-small"
                       onClick={() => applyPresetToSelectedStudents(preset, tab === "rewards" ? "reward" : "sanction")}
-                      disabled={isSavingBulkPayment}
                     >
-                      {isSavingBulkPayment ? "Saving…" : "Apply"}
+                      Apply
                     </button>
 
                     <button
@@ -1055,8 +1084,8 @@ async function handleRunDueBillsNow() {
                   />
                 </label>
 
-                <button className="ph-button ph-button-primary" type="submit" disabled={isSavingBulkPayment}>
-                  {isSavingBulkPayment ? "Saving…" : "Apply reward to ticked learners"}
+                <button className="ph-button ph-button-primary" type="submit">
+                  Apply reward to ticked students
                 </button>
               </form>
             ) : (
@@ -1096,8 +1125,8 @@ async function handleRunDueBillsNow() {
                   />
                 </label>
 
-                <button className="ph-button ph-button-primary" type="submit" disabled={isSavingBulkPayment}>
-                  {isSavingBulkPayment ? "Saving…" : "Apply sanction to ticked learners"}
+                <button className="ph-button ph-button-primary" type="submit">
+                  Apply sanction to ticked students
                 </button>
               </form>
             )}

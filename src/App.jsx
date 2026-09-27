@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/layout/ProtectedRoute.jsx";
 import RoleRoute from "./components/layout/RoleRoute.jsx";
@@ -29,8 +29,11 @@ import NotFoundPage from "./pages/shared/NotFoundPage.jsx";
 import UnauthorizedPage from "./pages/shared/UnauthorizedPage.jsx";
 import EntryPage from "./pages/shared/EntryPage.jsx";
 import TeacherShopManagerPage from "./pages/teacher/TeacherShopManagerPage.jsx";
+import { startAutomaticRecurringPaymentChecks } from "./services/bankService.js";
 
 export default function App() {
+  useEffect(() => startAutomaticRecurringPaymentChecks(), []);
+
   return (
     <Routes>
       <Route path="/" element={<EntryPage />} />

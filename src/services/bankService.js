@@ -22,14 +22,18 @@ let shopSymbolMap = {};
 let startedSync = false;
 let initialLoadPromise = null;
 let saveQueue = Promise.resolve();
-let lastSaveError = null;
+let automaticProcessingPromise = null;
 
 function createId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function generateSortCode() {
@@ -489,20 +493,15 @@ function writeState(nextState) {
     .then(async () => {
       await ensureFirebaseReady();
       await setDoc(STATE_DOC, cleanState);
-      lastSaveError = null;
     })
     .catch((error) => {
-      lastSaveError = error;
       console.error("Failed to save bank state:", error);
     });
 
   return cleanState;
 }
-export async function waitForPendingBankSave() {
-  await saveQueue;
-  if (lastSaveError) {
-    throw new Error("The bank update could not be saved. Check the internet connection and try again.");
-  }
+export function waitForPendingBankSave() {
+  return saveQueue;
 }
 export function resetBankState() {
   return writeState(clone(seedState));
@@ -1479,70 +1478,181 @@ export function applyMonthlyUpdate(runDate = todayDate()) {
   writeState(state);
 }
 
-export function runDueWeeklyPayments(runDate = todayDate()) {
-  const state = readState();
+function processDueRecurringPaymentsInState(
+  state,
+  runDate,
+  { frequency, automaticOnly = false } = {}
+) {
   let transactionCount = 0;
   let scheduleCount = 0;
 
   (state.recurringPayments || []).forEach((payment) => {
-    if (payment.active === false || payment.frequency !== "weekly") return;
+    if (payment.active === false || payment.frequency !== frequency) return;
+    if (automaticOnly && payment.automatic !== true) return;
 
     let scheduleProcessed = false;
+    const validStudentIds = [...new Set(payment.studentIds || [])].filter(Boolean);
 
     while (payment.nextDueDate && payment.nextDueDate <= runDate) {
       const dueDate = payment.nextDueDate;
-      const validStudentIds = [...new Set(payment.studentIds || [])].filter(Boolean);
 
       validStudentIds.forEach((studentId) => {
         const account = state.accounts.find((item) => item.studentId === studentId);
         if (!account) return;
 
-        const alreadyPaid = state.transactions.some(
+        const alreadyProcessed = state.transactions.some(
           (transaction) =>
             transaction.recurringPaymentId === payment.id &&
             transaction.studentId === studentId &&
             transaction.date === dueDate
         );
 
-        if (alreadyPaid) return;
+        if (alreadyProcessed) return;
 
         state.transactions.unshift({
           id: createId("txn"),
           accountId: account.id,
           studentId,
           date: dueDate,
-          description: payment.statementName || "WEEKLY PAYMENT",
+          description:
+            payment.statementName ||
+            (frequency === "weekly" ? "WEEKLY PAYMENT" : "MONTHLY BILL"),
           category: Number(payment.amount) < 0 ? "Deduction" : "Pay",
           amount: Number(payment.amount) || 0,
           suspicious: false,
           recurringPaymentId: payment.id
         });
 
-        account.balance = Number((account.balance + Number(payment.amount || 0)).toFixed(2));
+        account.balance = Number(
+          (account.balance + Number(payment.amount || 0)).toFixed(2)
+        );
         transactionCount += 1;
 
+        const isMoneyIn = Number(payment.amount) >= 0;
         addNotification(
           state,
           studentId,
-          Number(payment.amount) >= 0 ? "success" : "info",
-          Number(payment.amount) >= 0 ? "Weekly payment added" : "Weekly payment taken",
-          `${payment.statementName} has been ${Number(payment.amount) >= 0 ? "added to" : "taken from"} your account.`
+          isMoneyIn ? "success" : "info",
+          frequency === "weekly"
+            ? isMoneyIn
+              ? "Weekly payment added"
+              : "Weekly payment taken"
+            : isMoneyIn
+              ? "Monthly payment added"
+              : "Monthly bill paid",
+          `${payment.statementName} has been ${isMoneyIn ? "added to" : "taken from"} your account.`
         );
       });
 
       payment.lastPaidDate = dueDate;
-      const next = new Date(`${dueDate}T00:00:00`);
-      next.setDate(next.getDate() + 7);
-      payment.nextDueDate = next.toISOString().slice(0, 10);
+
+      if (frequency === "weekly") {
+        const next = new Date(`${dueDate}T12:00:00`);
+        next.setDate(next.getDate() + 7);
+        payment.nextDueDate = [
+          next.getFullYear(),
+          String(next.getMonth() + 1).padStart(2, "0"),
+          String(next.getDate()).padStart(2, "0")
+        ].join("-");
+      } else {
+        const safeMonthlyDay = Math.min(
+          Math.max(Number(payment.monthlyDay) || 1, 1),
+          28
+        );
+        payment.nextDueDate = addOneMonthToDueDate(dueDate, safeMonthlyDay);
+      }
+
       scheduleProcessed = true;
     }
 
     if (scheduleProcessed) scheduleCount += 1;
   });
 
-  if (scheduleCount > 0) writeState(state);
-
   return { scheduleCount, transactionCount };
+}
+
+export function runDueMonthlyBills(runDate = todayDate()) {
+  const state = readState();
+  const result = processDueRecurringPaymentsInState(state, runDate, {
+    frequency: "monthly"
+  });
+
+  if (result.scheduleCount > 0) writeState(state);
+  return result;
+}
+
+export function runDueWeeklyPayments(runDate = todayDate()) {
+  const state = readState();
+  const result = processDueRecurringPaymentsInState(state, runDate, {
+    frequency: "weekly"
+  });
+
+  if (result.scheduleCount > 0) writeState(state);
+  return result;
+}
+
+export async function processAutomaticRecurringPayments(runDate = todayDate()) {
+  if (automaticProcessingPromise) return automaticProcessingPromise;
+
+  automaticProcessingPromise = (async () => {
+    await waitForBankState();
+    await waitForPendingBankSave();
+    await ensureFirebaseReady();
+
+    let committedState = null;
+    let combinedResult = { scheduleCount: 0, transactionCount: 0 };
+
+    await runTransaction(db, async (firestoreTransaction) => {
+      const snapshot = await firestoreTransaction.get(STATE_DOC);
+      if (!snapshot.exists()) return;
+
+      const state = ensureStateShape(snapshot.data());
+      const monthlyResult = processDueRecurringPaymentsInState(state, runDate, {
+        frequency: "monthly",
+        automaticOnly: true
+      });
+      const weeklyResult = processDueRecurringPaymentsInState(state, runDate, {
+        frequency: "weekly",
+        automaticOnly: true
+      });
+
+      combinedResult = {
+        scheduleCount: monthlyResult.scheduleCount + weeklyResult.scheduleCount,
+        transactionCount: monthlyResult.transactionCount + weeklyResult.transactionCount
+      };
+
+      if (combinedResult.scheduleCount > 0) {
+        committedState = state;
+        firestoreTransaction.set(STATE_DOC, state);
+      }
+    });
+
+    if (committedState) setMemoryState(committedState);
+    return combinedResult;
+  })().finally(() => {
+    automaticProcessingPromise = null;
+  });
+
+  return automaticProcessingPromise;
+}
+
+export function startAutomaticRecurringPaymentChecks() {
+  let stopped = false;
+
+  const check = () => {
+    if (stopped) return;
+    processAutomaticRecurringPayments().catch((error) => {
+      console.error("Could not process automatic recurring payments:", error);
+    });
+  };
+
+  check();
+  const intervalId = window.setInterval(check, 60 * 60 * 1000);
+
+  return () => {
+    stopped = true;
+    window.clearInterval(intervalId);
+  };
 }
 export function setCardStatus(studentId, status) {
   const state = readState();
@@ -2038,62 +2148,23 @@ export function saveTransactionTemplate(template) {
 
 export function addTransactionToStudents(studentIds, transaction) {
   const uniqueStudentIds = [...new Set(studentIds)].filter(Boolean);
-  const state = readState();
-  const description =
-    transaction.description?.trim() ||
-    transaction.statementName?.trim() ||
-    transaction.name?.trim() ||
-    "Bulk transaction";
-  const category = transaction.category?.trim() || "Other";
-  const numericAmount = Number(transaction.amount) || 0;
-  const transactionDate = transaction.date || todayDate();
-  const suspicious = !!transaction.suspicious;
-  let processedCount = 0;
 
   uniqueStudentIds.forEach((studentId) => {
-    const account = state.accounts.find((item) => item.studentId === studentId);
-    const student = state.students.find((item) => item.id === studentId);
-    if (!account || !student) return;
-
-    const txn = {
-      id: createId("txn"),
-      accountId: account.id,
+    addTransaction({
       studentId,
-      date: transactionDate,
-      description,
-      category,
-      amount: numericAmount,
-      suspicious
-    };
-
-    state.transactions.push(txn);
-    account.balance = Number((account.balance + numericAmount).toFixed(2));
-
-    if (numericAmount > 0) {
-      addNotification(
-        state,
-        studentId,
-        "success",
-        "Money added",
-        `${description} was added to your account.`
-      );
-    } else {
-      addNotification(
-        state,
-        studentId,
-        suspicious ? "warning" : "info",
-        suspicious ? "Check this payment" : "New payment",
-        suspicious
-          ? `${description} has been marked for checking.`
-          : `${description} has left your account.`
-      );
-    }
-
-    processedCount += 1;
+      description:
+        transaction.description?.trim() ||
+        transaction.statementName?.trim() ||
+        transaction.name?.trim() ||
+        "Bulk transaction",
+      category: transaction.category?.trim() || "Other",
+      amount: Number(transaction.amount) || 0,
+      date: transaction.date || todayDate(),
+      suspicious: !!transaction.suspicious
+    });
   });
 
-  if (processedCount > 0) writeState(state);
-  return processedCount;
+  return uniqueStudentIds.length;
 }
 
 export function addTransactionToClass(classGroup, transaction) {
@@ -2189,7 +2260,8 @@ export function getRecurringPayments() {
 
   return (state.recurringPayments || []).map((item) => ({
     ...item,
-    monthlyDay: Number(item.monthlyDay || new Date(item.nextDueDate).getDate() || 1),
+    monthlyDay: Number(item.monthlyDay || new Date(`${item.nextDueDate}T12:00:00`).getDate() || 1),
+    automatic: item.automatic === true,
     studentNames: (item.studentIds || [])
       .map((id) => state.students.find((student) => student.id === id)?.name)
       .filter(Boolean)
@@ -2228,7 +2300,8 @@ export function createRecurringPayment({
   type,
   startDate,
   monthlyDay,
-  frequency = "monthly"
+  frequency = "monthly",
+  automatic = false
 }) {
   const state = readState();
 
@@ -2276,7 +2349,8 @@ export function createRecurringPayment({
     monthlyDay: safeMonthlyDay,
     nextDueDate: getInitialRecurringDueDate(safeFrequency, safeStartDate, safeMonthlyDay),
     frequency: safeFrequency,
-    active: true
+    active: true,
+    automatic: automatic === true
   };
 
   state.recurringPayments.unshift(recurringPayment);
@@ -2293,6 +2367,19 @@ export function toggleRecurringPaymentActive(recurringPaymentId) {
   }
 
   item.active = !item.active;
+  writeState(state);
+  return item;
+}
+
+export function toggleRecurringPaymentAutomatic(recurringPaymentId) {
+  const state = readState();
+  const item = state.recurringPayments.find((payment) => payment.id === recurringPaymentId);
+
+  if (!item) {
+    throw new Error("Recurring payment not found.");
+  }
+
+  item.automatic = item.automatic !== true;
   writeState(state);
   return item;
 }
