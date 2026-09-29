@@ -22,6 +22,7 @@ let shopSymbolMap = {};
 let startedSync = false;
 let initialLoadPromise = null;
 let saveQueue = Promise.resolve();
+let latestSavePromise = Promise.resolve();
 let automaticProcessingPromise = null;
 
 function createId(prefix) {
@@ -489,19 +490,34 @@ function writeState(nextState) {
   const cleanState = ensureStateShape(nextState);
   setMemoryState(cleanState);
 
-  saveQueue = saveQueue
-    .then(async () => {
+  const saveOperation = saveQueue.then(async () => {
       await ensureFirebaseReady();
       await setDoc(STATE_DOC, cleanState);
-    })
-    .catch((error) => {
+    });
+
+  latestSavePromise = saveOperation;
+  saveQueue = saveOperation.catch((error) => {
       console.error("Failed to save bank state:", error);
     });
 
   return cleanState;
 }
-export function waitForPendingBankSave() {
-  return saveQueue;
+export function waitForPendingBankSave(timeoutMs = 15000) {
+  let timeoutId;
+
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(
+        new Error(
+          "Saving is taking too long. Check the internet connection and try again."
+        )
+      );
+    }, timeoutMs);
+  });
+
+  return Promise.race([latestSavePromise, timeout]).finally(() => {
+    clearTimeout(timeoutId);
+  });
 }
 export function resetBankState() {
   return writeState(clone(seedState));
@@ -2149,10 +2165,19 @@ export function saveTransactionTemplate(template) {
 }
 
 export function addTransactionToStudents(studentIds, transaction) {
+  const state = readState();
   const uniqueStudentIds = [...new Set(studentIds)].filter(Boolean);
+  let processedCount = 0;
 
   uniqueStudentIds.forEach((studentId) => {
-    addTransaction({
+    const account = state.accounts.find((item) => item.studentId === studentId);
+    const student = state.students.find((item) => item.id === studentId);
+    if (!account || !student) return;
+
+    const numericAmount = Number(transaction.amount) || 0;
+    const txn = {
+      id: createId("txn"),
+      accountId: account.id,
       studentId,
       description:
         transaction.description?.trim() ||
@@ -2163,10 +2188,36 @@ export function addTransactionToStudents(studentIds, transaction) {
       amount: Number(transaction.amount) || 0,
       date: transaction.date || todayDate(),
       suspicious: !!transaction.suspicious
-    });
+    };
+
+    state.transactions.push(txn);
+    account.balance = Number((account.balance + numericAmount).toFixed(2));
+
+    if (numericAmount > 0) {
+      addNotification(
+        state,
+        studentId,
+        "success",
+        "Money added",
+        `${txn.description} was added to your account.`
+      );
+    } else {
+      addNotification(
+        state,
+        studentId,
+        txn.suspicious ? "warning" : "info",
+        txn.suspicious ? "Check this payment" : "New payment",
+        txn.suspicious
+          ? `${txn.description} has been marked for checking.`
+          : `${txn.description} has left your account.`
+      );
+    }
+
+    processedCount += 1;
   });
 
-  return uniqueStudentIds.length;
+  if (processedCount > 0) writeState(state);
+  return processedCount;
 }
 
 export function addTransactionToClass(classGroup, transaction) {

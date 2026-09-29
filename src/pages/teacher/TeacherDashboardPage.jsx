@@ -103,9 +103,8 @@ export default function TeacherDashboardPage() {
 
  async function handlePaymentSubmit(event) {
   event.preventDefault();
-  setFormError("");
-
   if (isSavingPayment) return;
+  setFormError("");
 
   if (!paymentForm.statementName.trim()) {
     setFormError("Enter a statement name.");
@@ -126,7 +125,7 @@ export default function TeacherDashboardPage() {
   if (paymentForm.repeat === "one-off") {
     setIsSavingPayment(true);
     try {
-      const count = addTransactionToStudents(selectedStudentIds, {
+      const processedCount = addTransactionToStudents(selectedStudentIds, {
         description: paymentForm.statementName,
         category: paymentForm.type === "take" ? "Deduction" : "Pay",
         amount: finalAmount,
@@ -136,7 +135,7 @@ export default function TeacherDashboardPage() {
       await waitForPendingBankSave();
 
       window.alert(
-        `${paymentForm.type === "take" ? "Deduction" : "Payment"} added for ${count} learner${count === 1 ? "" : "s"}.`
+        `${paymentForm.type === "take" ? "Deduction" : "Payment"} added for ${processedCount} student${processedCount === 1 ? "" : "s"}.`
       );
       closePaymentModal();
     } catch (error) {
