@@ -132,7 +132,7 @@ function buildSeedLogins() {
       studentId: null,
       role: "teacher",
       username: "admin",
-      password: "powerhouse123",
+      password: "Powerhouse123!",
       active: true,
       displayName: "Powerhouse Admin"
     }
@@ -214,10 +214,25 @@ function ensureStateShape(state) {
       studentId: null,
       role: "teacher",
       username: "admin",
-      password: "powerhouse123",
+      password: "Powerhouse123!",
       active: true,
       displayName: "Powerhouse Admin"
     });
+  }
+
+  // Apply the requested staff password once to existing live bank data.
+  // The marker prevents future password changes from being overwritten.
+  if (!nextState.migrations || typeof nextState.migrations !== "object") {
+    nextState.migrations = {};
+  }
+
+  if (nextState.migrations.staffPasswordPowerhouse123Oct2026 !== true) {
+    nextState.logins.forEach((login) => {
+      if (login.role === "teacher") {
+        login.password = "Powerhouse123!";
+      }
+    });
+    nextState.migrations.staffPasswordPowerhouse123Oct2026 = true;
   }
 
   nextState.students.forEach((student) => {

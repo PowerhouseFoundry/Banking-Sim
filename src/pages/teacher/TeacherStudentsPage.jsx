@@ -283,7 +283,6 @@ function handleResetBalance(student) {
           <div className="ph-simple-list">
             <p><strong>Teacher admin login</strong></p>
             <p>Username: <strong>admin</strong></p>
-            <p>Password: <strong>powerhouse123</strong></p>
             <p className="ph-muted" style={{ marginTop: "12px" }}>
               Staff can view and edit student usernames and passwords here because this is a training system, not a real bank.
             </p>
