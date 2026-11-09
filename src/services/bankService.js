@@ -6,7 +6,7 @@ import {
   mockStudents,
   mockTransactions
 } from "../data/mockData.js";
-import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, runTransaction, setDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, runTransaction, setDoc, where, writeBatch } from "firebase/firestore";
 import { db, ensureFirebaseReady } from "./firebase.js";
 
 const LOCAL_CACHE_KEY = "powerhouseBankingStateCache";
@@ -16,6 +16,14 @@ const CHANGE_EVENT = "powerhouse-banking-updated";
 const STATE_DOC = doc(db, "bankState", "current");
 const BANK_STATE_COLLECTION = collection(db, "bankState");
 const SHOP_SYMBOLS_QUERY = query(BANK_STATE_COLLECTION, where("kind", "==", "shopSymbol"));
+const SPLIT_STORAGE_VERSION = 2;
+const RECORD_COLLECTIONS = {
+  transactions: "bankTransactions",
+  notifications: "bankNotifications",
+  fraudReports: "bankFraudReports",
+  shopOrders: "bankShopOrders"
+};
+const RECORD_KEYS = Object.keys(RECORD_COLLECTIONS);
 
 let memoryState = null;
 let shopSymbolMap = {};
@@ -24,6 +32,8 @@ let initialLoadPromise = null;
 let saveQueue = Promise.resolve();
 let latestSavePromise = Promise.resolve();
 let automaticProcessingPromise = null;
+let coreStateCache = null;
+const persistedRecordMaps = Object.fromEntries(RECORD_KEYS.map((key) => [key, new Map()]));
 
 function createId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
@@ -289,6 +299,138 @@ nextState.accounts = nextState.accounts.map((account) => ({
   return nextState;
 }
 
+function stripGrowingRecords(state) {
+  const core = clone(state || {});
+  RECORD_KEYS.forEach((key) => delete core[key]);
+  core.storageVersion = SPLIT_STORAGE_VERSION;
+  return core;
+}
+
+function recordMapFromArray(records = []) {
+  return new Map(
+    (records || [])
+      .filter((record) => record?.id)
+      .map((record) => [record.id, clone(record)])
+  );
+}
+
+function replacePersistedRecordMap(key, records = []) {
+  persistedRecordMaps[key] = recordMapFromArray(records);
+}
+
+function recordDoc(key, recordId) {
+  return doc(db, RECORD_COLLECTIONS[key], String(recordId).replaceAll("/", "_"));
+}
+
+function composeState(coreState = coreStateCache) {
+  const base = coreState || stripGrowingRecords(getDefaultState());
+  return ensureStateShape({
+    ...base,
+    ...Object.fromEntries(
+      RECORD_KEYS.map((key) => [
+        key,
+        Array.from(persistedRecordMaps[key].values()).map(clone)
+      ])
+    )
+  });
+}
+
+async function commitInChunks(operations, finalCoreState = null) {
+  if (operations.length === 0 && !finalCoreState) return;
+
+  const chunkSize = 400;
+  const chunks = [];
+
+  for (let index = 0; index < operations.length; index += chunkSize) {
+    chunks.push(operations.slice(index, index + chunkSize));
+  }
+
+  if (chunks.length === 0) chunks.push([]);
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const batch = writeBatch(db);
+
+    chunks[index].forEach((operation) => {
+      if (operation.type === "delete") {
+        batch.delete(operation.ref);
+      } else {
+        batch.set(operation.ref, operation.data);
+      }
+    });
+
+    if (finalCoreState && index === chunks.length - 1) {
+      batch.set(STATE_DOC, finalCoreState);
+    }
+
+    await batch.commit();
+  }
+}
+
+async function loadSplitRecordCollections() {
+  await Promise.all(
+    RECORD_KEYS.map(async (key) => {
+      const snapshot = await getDocs(collection(db, RECORD_COLLECTIONS[key]));
+      const records = [];
+      snapshot.forEach((recordSnapshot) => records.push(recordSnapshot.data()));
+      replacePersistedRecordMap(key, records);
+    })
+  );
+}
+
+async function migrateLegacyGrowingRecords(rawState) {
+  const shapedState = ensureStateShape(rawState);
+  const operations = [];
+
+  RECORD_KEYS.forEach((key) => {
+    shapedState[key].forEach((record, index) => {
+      if (!record?.id) return;
+      const migratedRecord = {
+        ...clone(record),
+        storageOrder: Number.isFinite(record.storageOrder) ? record.storageOrder : index
+      };
+      operations.push({
+        type: "set",
+        ref: recordDoc(key, record.id),
+        data: migratedRecord
+      });
+      shapedState[key][index] = migratedRecord;
+    });
+  });
+
+  const migratedCore = stripGrowingRecords(shapedState);
+  migratedCore.storageMigration = {
+    completed: true,
+    completedAt: new Date().toISOString(),
+    recordCounts: Object.fromEntries(
+      RECORD_KEYS.map((key) => [key, shapedState[key].length])
+    )
+  };
+
+  // Copy and verify all growing records first. The oversized legacy document
+  // is replaced only after every collection contains the expected records.
+  await commitInChunks(operations);
+
+  for (const key of RECORD_KEYS) {
+    const verificationSnapshot = await getDocs(collection(db, RECORD_COLLECTIONS[key]));
+    const expectedIds = new Set(shapedState[key].map((record) => record?.id).filter(Boolean));
+    const migratedIds = new Set();
+    verificationSnapshot.forEach((recordSnapshot) => {
+      const record = recordSnapshot.data();
+      if (record?.id) migratedIds.add(record.id);
+    });
+    const allExpectedRecordsExist = [...expectedIds].every((id) => migratedIds.has(id));
+    if (!allExpectedRecordsExist) {
+      throw new Error(`Storage upgrade could not verify all ${key}. Existing bank data was not changed.`);
+    }
+  }
+
+  await setDoc(STATE_DOC, migratedCore);
+
+  coreStateCache = migratedCore;
+  RECORD_KEYS.forEach((key) => replacePersistedRecordMap(key, shapedState[key]));
+  return shapedState;
+}
+
 function readLocalCache() {
   const storage = getBrowserStorage();
   if (!storage) return null;
@@ -398,12 +540,31 @@ async function loadInitialStateFromFirestore() {
 
   if (snapshot.exists()) {
     const rawState = snapshot.data();
-    await migrateEmbeddedShopSymbols(rawState);
-    return setMemoryState(rawState);
+    let fullState;
+
+    if (Number(rawState.storageVersion || 0) < SPLIT_STORAGE_VERSION) {
+      fullState = await migrateLegacyGrowingRecords(rawState);
+    } else {
+      coreStateCache = stripGrowingRecords(rawState);
+      await loadSplitRecordCollections();
+      fullState = composeState();
+    }
+
+    await migrateEmbeddedShopSymbols(fullState);
+    return setMemoryState(fullState);
   }
 
   const startingState = readLocalCache() || getDefaultState();
-  await setDoc(STATE_DOC, startingState);
+  const operations = [];
+  RECORD_KEYS.forEach((key) => {
+    startingState[key].forEach((record) => {
+      if (!record?.id) return;
+      operations.push({ type: "set", ref: recordDoc(key, record.id), data: clone(record) });
+    });
+    replacePersistedRecordMap(key, startingState[key]);
+  });
+  coreStateCache = stripGrowingRecords(startingState);
+  await commitInChunks(operations, coreStateCache);
   return setMemoryState(startingState);
 }
 
@@ -421,12 +582,28 @@ function startFirestoreSync() {
         STATE_DOC,
         (snapshot) => {
           if (!snapshot.exists()) return;
-          setMemoryState(snapshot.data());
+          coreStateCache = stripGrowingRecords(snapshot.data());
+          setMemoryState(composeState());
         },
         (error) => {
           console.error("Bank data listener error:", error);
         }
       );
+
+      RECORD_KEYS.forEach((key) => {
+        onSnapshot(
+          collection(db, RECORD_COLLECTIONS[key]),
+          (snapshot) => {
+            const records = [];
+            snapshot.forEach((recordSnapshot) => records.push(recordSnapshot.data()));
+            replacePersistedRecordMap(key, records);
+            setMemoryState(composeState());
+          },
+          (error) => {
+            console.error(`Bank ${key} listener error:`, error);
+          }
+        );
+      });
 
       getDocs(SHOP_SYMBOLS_QUERY)
         .then((snapshot) => {
@@ -445,6 +622,11 @@ function startFirestoreSync() {
     })
     .catch((error) => {
       console.error("Failed to start Firestore sync:", error);
+      if (typeof window !== "undefined") {
+        window.alert(
+          "PLC Bank could not complete its safe storage upgrade. No existing bank data was removed. Deploy the included Firestore rules, then refresh the app."
+        );
+      }
     });
 }
 
@@ -475,17 +657,6 @@ function readState() {
 }
 async function readStateForLogin() {
   await waitForBankState();
-  await ensureFirebaseReady();
-
-  try {
-    const snapshot = await getDoc(STATE_DOC);
-
-    if (snapshot.exists()) {
-      return setMemoryState(snapshot.data());
-    }
-  } catch (error) {
-    console.error("Failed to fetch latest bank state for login:", error);
-  }
 
   if (memoryState) {
     return memoryState;
@@ -503,11 +674,35 @@ function writeState(nextState) {
   startFirestoreSync();
 
   const cleanState = ensureStateShape(nextState);
+  const nextCoreState = stripGrowingRecords(cleanState);
+  const operations = [];
+
+  RECORD_KEYS.forEach((key) => {
+    const nextMap = recordMapFromArray(cleanState[key]);
+    const previousMap = persistedRecordMaps[key];
+
+    nextMap.forEach((record, id) => {
+      const previous = previousMap.get(id);
+      if (!previous || JSON.stringify(previous) !== JSON.stringify(record)) {
+        operations.push({ type: "set", ref: recordDoc(key, id), data: record });
+      }
+    });
+
+    previousMap.forEach((_, id) => {
+      if (!nextMap.has(id)) {
+        operations.push({ type: "delete", ref: recordDoc(key, id) });
+      }
+    });
+  });
+
   setMemoryState(cleanState);
 
   const saveOperation = saveQueue.then(async () => {
+      if (initialLoadPromise) await initialLoadPromise;
       await ensureFirebaseReady();
-      await setDoc(STATE_DOC, cleanState);
+      await commitInChunks(operations, nextCoreState);
+      coreStateCache = nextCoreState;
+      RECORD_KEYS.forEach((key) => replacePersistedRecordMap(key, cleanState[key]));
     });
 
   latestSavePromise = saveOperation;
@@ -556,7 +751,8 @@ function addNotification(state, studentId, type, title, message) {
     type,
     title,
     message,
-    read: false
+    read: false,
+    createdAt: new Date().toISOString()
   });
 }
 
@@ -734,7 +930,14 @@ export function getStudentDirectDebits(studentId) {
 
 export function getStudentNotifications(studentId) {
   const state = readState();
-  return state.notifications.filter((item) => item.studentId === studentId);
+  return state.notifications
+    .filter((item) => item.studentId === studentId)
+    .sort((a, b) => {
+      if (a.createdAt || b.createdAt) {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      }
+      return Number(a.storageOrder || 0) - Number(b.storageOrder || 0);
+    });
 }
 
 export function getStudentFraudReports(studentId) {
@@ -1632,14 +1835,22 @@ export async function processAutomaticRecurringPayments(runDate = todayDate()) {
     await waitForPendingBankSave();
     await ensureFirebaseReady();
 
-    let committedState = null;
+    let committedCore = null;
+    let generatedTransactions = [];
+    let generatedNotifications = [];
     let combinedResult = { scheduleCount: 0, transactionCount: 0 };
 
     await runTransaction(db, async (firestoreTransaction) => {
       const snapshot = await firestoreTransaction.get(STATE_DOC);
       if (!snapshot.exists()) return;
 
-      const state = ensureStateShape(snapshot.data());
+      const state = ensureStateShape({
+        ...snapshot.data(),
+        transactions: [],
+        notifications: [],
+        fraudReports: [],
+        shopOrders: []
+      });
       const monthlyResult = processDueRecurringPaymentsInState(state, runDate, {
         frequency: "monthly",
         automaticOnly: true
@@ -1655,12 +1866,26 @@ export async function processAutomaticRecurringPayments(runDate = todayDate()) {
       };
 
       if (combinedResult.scheduleCount > 0) {
-        committedState = state;
-        firestoreTransaction.set(STATE_DOC, state);
+        generatedTransactions = clone(state.transactions);
+        generatedNotifications = clone(state.notifications);
+        committedCore = stripGrowingRecords(state);
+
+        generatedTransactions.forEach((record) => {
+          firestoreTransaction.set(recordDoc("transactions", record.id), record);
+        });
+        generatedNotifications.forEach((record) => {
+          firestoreTransaction.set(recordDoc("notifications", record.id), record);
+        });
+        firestoreTransaction.set(STATE_DOC, committedCore);
       }
     });
 
-    if (committedState) setMemoryState(committedState);
+    if (committedCore) {
+      coreStateCache = committedCore;
+      generatedTransactions.forEach((record) => persistedRecordMaps.transactions.set(record.id, record));
+      generatedNotifications.forEach((record) => persistedRecordMaps.notifications.set(record.id, record));
+      setMemoryState(composeState());
+    }
     return combinedResult;
   })().finally(() => {
     automaticProcessingPromise = null;
@@ -1871,7 +2096,10 @@ export async function purchaseShopProduct({ studentId, productId }) {
   await waitForPendingBankSave();
   await ensureFirebaseReady();
 
-  let committedState = null;
+  let committedCore = null;
+  let committedTransaction = null;
+  let committedOrder = null;
+  let committedNotifications = [];
   let result = null;
 
   await runTransaction(db, async (firestoreTransaction) => {
@@ -1881,7 +2109,13 @@ export async function purchaseShopProduct({ studentId, productId }) {
       throw new Error("Bank data is not available. Please try again.");
     }
 
-    const state = ensureStateShape(snapshot.data());
+    const state = ensureStateShape({
+      ...snapshot.data(),
+      transactions: [],
+      notifications: [],
+      fraudReports: [],
+      shopOrders: []
+    });
     const product = (state.shopProducts || []).find((item) => item.id === productId);
 
     if (!product || product.active === false) {
@@ -1961,8 +2195,17 @@ export async function purchaseShopProduct({ studentId, productId }) {
       `£${price.toFixed(2)} paid for ${product.name}.`
     );
 
-    firestoreTransaction.set(STATE_DOC, state);
-    committedState = state;
+    committedCore = stripGrowingRecords(state);
+    committedTransaction = clone(paymentTransaction);
+    committedOrder = clone(order);
+    committedNotifications = clone(state.notifications);
+
+    firestoreTransaction.set(STATE_DOC, committedCore);
+    firestoreTransaction.set(recordDoc("transactions", paymentTransaction.id), paymentTransaction);
+    firestoreTransaction.set(recordDoc("shopOrders", order.id), order);
+    committedNotifications.forEach((record) => {
+      firestoreTransaction.set(recordDoc("notifications", record.id), record);
+    });
     result = {
       product: clone(product),
       order: clone(order),
@@ -1971,8 +2214,14 @@ export async function purchaseShopProduct({ studentId, productId }) {
     };
   });
 
-  if (committedState) {
-    setMemoryState(committedState);
+  if (committedCore) {
+    coreStateCache = committedCore;
+    persistedRecordMaps.transactions.set(committedTransaction.id, committedTransaction);
+    persistedRecordMaps.shopOrders.set(committedOrder.id, committedOrder);
+    committedNotifications.forEach((record) => {
+      persistedRecordMaps.notifications.set(record.id, record);
+    });
+    setMemoryState(composeState());
   }
 
   return result;
