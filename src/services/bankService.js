@@ -623,8 +623,11 @@ function startFirestoreSync() {
     .catch((error) => {
       console.error("Failed to start Firestore sync:", error);
       if (typeof window !== "undefined") {
+        const detail = error?.code === "auth/operation-not-allowed"
+          ? "Enable Anonymous sign-in in Firebase Authentication, then refresh the app."
+          : `Firebase error: ${error?.message || "Unknown connection error"}`;
         window.alert(
-          "PLC Bank could not complete its safe storage upgrade. No existing bank data was removed. Deploy the included Firestore rules, then refresh the app."
+          `PLC Bank could not complete its safe storage upgrade. No existing bank data was removed. ${detail}`
         );
       }
     });

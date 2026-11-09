@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
 import { initializeFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -11,6 +12,8 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+let firebaseReadyPromise = null;
 
 // The college/network connection is interrupting Firestore's normal
 // WebChannel transport. Force long polling and use a shorter timeout
@@ -23,7 +26,18 @@ const db = initializeFirestore(app, {
 });
 
 export async function ensureFirebaseReady() {
-  return db;
+  if (auth.currentUser) return db;
+
+  if (!firebaseReadyPromise) {
+    firebaseReadyPromise = signInAnonymously(auth)
+      .then(() => db)
+      .catch((error) => {
+        firebaseReadyPromise = null;
+        throw error;
+      });
+  }
+
+  return firebaseReadyPromise;
 }
 
-export { db };
+export { auth, db };
