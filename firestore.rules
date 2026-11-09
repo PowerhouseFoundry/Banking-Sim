@@ -2,7 +2,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /bankState/{document} {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+
+      // The main state must use split storage. This permanently blocks an
+      // older cached app from putting the growing record arrays back into the
+      // 1 MiB bankState/current document after migration.
+      allow create, update: if request.auth != null && (
+        document != "current" ||
+        (
+          request.resource.data.storageVersion == 2 &&
+          !request.resource.data.keys().hasAny([
+            "transactions",
+            "notifications",
+            "fraudReports",
+            "shopOrders"
+          ])
+        )
+      );
+
+      allow delete: if request.auth != null && document != "current";
     }
 
     match /bankTransactions/{document} {

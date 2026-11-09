@@ -541,8 +541,14 @@ async function loadInitialStateFromFirestore() {
   if (snapshot.exists()) {
     const rawState = snapshot.data();
     let fullState;
+    const containsEmbeddedGrowingRecords = RECORD_KEYS.some((key) =>
+      Object.prototype.hasOwnProperty.call(rawState, key)
+    );
 
-    if (Number(rawState.storageVersion || 0) < SPLIT_STORAGE_VERSION) {
+    if (
+      Number(rawState.storageVersion || 0) < SPLIT_STORAGE_VERSION ||
+      containsEmbeddedGrowingRecords
+    ) {
       fullState = await migrateLegacyGrowingRecords(rawState);
     } else {
       coreStateCache = stripGrowingRecords(rawState);
